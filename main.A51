@@ -4,26 +4,26 @@ LCD1602_RS_Pin equ P0.0
 LCD1602_RW_Pin equ P0.1
 LCD1602_EN_Pin equ P0.2
 LCD1602_Data_Port equ P1
-DS1307_Address equ #4eh
+DS1307_Address equ 0D0H
 SDA equ P3.6
 SCL equ P3.7
-DS1307_Second_Reg equ #00h
-DS1307_Minutes_Reg equ #01h
-DS1307_Hours_Reg equ #02h
-DS1307_Day_Reg equ #03h
-DS1307_Date_Reg equ #04h
-DS1307_Month_Reg equ #05h
-DS1307_Year_Reg equ #06h
-DS1307_Control_Reg equ #07h
-DS1307_Ram equ #08h
-LCD_Clear_Screen equ #01h
-LCD_Reset_Cursor equ #02h
-LCD_Input_Set equ #04h
-LCD_Display_Switch equ #08h
-LCD_Shift equ #10h
-LCD_Function_Set equ #20h
-LCD_Set_CGRAM_Addr equ #40h
-LCD_Set_DDRAM_Addr equ #80h
+DS1307_Second_Reg equ 00h
+DS1307_Minutes_Reg equ 01h
+DS1307_Hours_Reg equ 02h
+DS1307_Day_Reg equ 03h
+DS1307_Date_Reg equ 04h
+DS1307_Month_Reg equ 05h
+DS1307_Year_Reg equ 06h
+DS1307_Control_Reg equ 07h
+DS1307_Ram equ 08h
+LCD_Clear_Screen equ 01h
+LCD_Reset_Cursor equ 02h
+LCD_Input_Set equ 04h
+LCD_Display_Switch equ 08h
+LCD_Shift equ 10h
+LCD_Function_Set equ 20h
+LCD_Set_CGRAM_Addr equ 40h
+LCD_Set_DDRAM_Addr equ 80h
 
 
 
@@ -374,6 +374,58 @@ DS1307_GET_YEAR:
 	ACALL DS1307_READ_BYTE
 	MOV 36H, A
 	RET	
+;;-----------------------------------------------
+;HÀM SET_TIME
+;HI?N TRUY?N GIÁ TR? C? Ð?NH VÔ 
+;;-----------------------------------------------
+DS1307_SET_SECOND:
+	mov B , A
+	mov A, #DS1307_Second_Reg
+	acall DS1307_WRITE_BYTE
+	RET
+	
+;;-----------------------------------------------
+DS1307_SET_MINUTES:
+	mov B , A
+	mov A, #DS1307_Minutes_Reg
+	acall DS1307_WRITE_BYTE
+	RET
+	
+;;-----------------------------------------------
+DS1307_SET_HOURS:
+	mov B , A
+	mov A, #DS1307_Hours_Reg
+	acall DS1307_WRITE_BYTE
+	RET
+
+;;-----------------------------------------------
+DS1307_SET_DAY:
+	mov B , A
+	mov A, #DS1307_Day_Reg
+	acall DS1307_WRITE_BYTE
+	RET
+
+;;-----------------------------------------------
+DS1307_SET_DATE:
+	mov B , A
+	mov A, #DS1307_Date_Reg
+	acall DS1307_WRITE_BYTE
+	RET
+	
+;;-----------------------------------------------
+DS1307_SET_MONTH:
+	mov B , A
+	mov A, #DS1307_Month_Reg
+	acall DS1307_WRITE_BYTE
+	RET	
+	
+;;-----------------------------------------------
+DS1307_SET_YEAR:
+	mov B , A
+	mov A, #DS1307_Year_Reg
+	acall DS1307_WRITE_BYTE
+	RET
+	
 ;-----------------------------------------------
 ; CONVERT_BCD_TO_ASCII
 ; Chuyển 1 byte BCD sang 2 ký tự ASCII (ví dụ: 0x45 -> '4', '5')
