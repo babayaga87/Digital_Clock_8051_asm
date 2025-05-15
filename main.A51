@@ -347,36 +347,32 @@ DS1307_READ_BYTE:
 ;	    	A = 0x02 -> 8kHz
 ;	    	A = 0x03 -> 32kHz 
 ;-----------------------------------------------
+;-----------------------------------------------
+; DS1307_SET_SQW_FREQ
+; Cài đặt tần số xung output của DS1307
+; Tham số: 	A = 0x00 -> 1Hz
+;	    	A = 0x01 -> 4kHz
+;	    	A = 0x02 -> 8kHz
+;	    	A = 0x03 -> 32kHz 
+;-----------------------------------------------
 DS1307_SET_SQW_FREQ:
-    push ACC
-    mov A, #DS1307_Control_Reg
-    acall DS1307_READ_BYTE
-    mov B, A 
-    pop ACC
-
 	sqw_1hz:
 	cjne A, #00h, sqw_4kHz
-    mov A, B
-	anl A, #0fch
+    mov A, #10h
     sjmp final_set_freq
 	
 	sqw_4kHz:
 	cjne A, #01h, sqw_8kHz
-    mov A, B
-    orl A, #1
-    anl A, #0fdh
+    mov A, #11h
     sjmp final_set_freq
 
 	sqw_8kHz:
 	cjne A, #02h, sqw_32kHz
-    mov A, B
-    orl A, #2 
-    anl A, #0feh
+	mov A, #12h
     sjmp final_set_freq
 
 	sqw_32kHz:
-    mov A, B
-    orl A, #3
+    mov A, #13h
 	
     final_set_freq:
 	mov B, A
@@ -392,13 +388,15 @@ DS1307_SET_SQW_FREQ:
 ;           C = 1 -> on
 ;-----------------------------------------------
 DS1307_SET_SQW:
-    mov A, #DS1307_Control_Reg 
-    acall DS1307_READ_BYTE
-    jnc off
+	jnc off
     on:
-    orl A, #1
+	mov A, #DS1307_Control_Reg 
+    acall DS1307_READ_BYTE
+    orl A, #10h
     sjmp final_set_sqw
     off:
+	mov A, #DS1307_Control_Reg 
+    acall DS1307_READ_BYTE
     anl A, #0efh
     final_set_sqw:
     mov B, A 
