@@ -44,7 +44,7 @@ Start:
 	acall LCD_INIT			; Khởi tạo LCD
 
 MainLoop:
-	acall DS1307_GET_TIME		; Đọc giờ từ DS1307, lưu vào R2, R3, R4
+	;acall DS1307_GET_TIME		; Đọc giờ từ DS1307, lưu vào R2, R3, R4
 	
 	acall DISPLAY_TIME_TO_LCD	; Hiển thị lên LCD
 
@@ -298,7 +298,7 @@ Done:
 ;-----------------------------------------------
 DS1307_WRITE_BYTE:
 	push ACC
-	mov A, #DS1307_Adress
+	mov A, #DS1307_Address
 	acall I2C_Start
 	acall I2C_Send_Byte
 	acall I2C_Read_ACK
@@ -732,7 +732,6 @@ WRITE_BACK:
     pop ACC
     
     ret         
-    end
 
 
 ;-----------------------------------------------
@@ -767,7 +766,7 @@ DISPLAY_MINUTES_TO_LCD:
 	RET
 
 DISPLAY_SECONDS_TO_LCD:
-	ACALL DS1307_GET_SECONDS
+	ACALL DS1307_SET_SECONDS
 	MOV A, 32H ; seconds
 	ACALL CONVERT_BCD_TO_ASCII 
 	MOV A, R5
