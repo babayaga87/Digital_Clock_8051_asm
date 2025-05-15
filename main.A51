@@ -396,7 +396,15 @@ DS1307_SET_SQW:
 ;-----------------------------------------------
 ; DS1307_GET: Các hàm để lấy thông tin từ DS1307
 ;-----------------------------------------------
-
+DS1307_GET_TIME:
+	acall DS1307_GET_SECOND
+	acall DS1307_GET_MINUTES
+	acall DS1307_GET_HOURS
+	acall DS1307_GET_DAY
+	acall DS1307_GET_DATE
+	acall DS1307_GET_MONTH
+	acall DS1307_GET_YEAR
+	ret
 ;-----------------------------------------------
 DS1307_GET_SECOND:
 	MOV A, #DS1307_Second_Reg
