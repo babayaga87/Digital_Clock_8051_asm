@@ -1,0 +1,1004 @@
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.2.7.0
+OBJECT MODULE PLACED IN .\Objects\main.obj
+ASSEMBLER INVOKED BY: C:\Keil_v5\C51\BIN\A51.EXE main.A51 SET(SMALL) DEBUG PRINT(.\Listings\main.lst) OBJECT(.\Objects\m
+                      ain.obj) EP
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     
+                       2     ; definition
+  0080                 3     LCD1602_RS_Pin equ P0.0
+  0081                 4     LCD1602_RW_Pin equ P0.1
+  0082                 5     LCD1602_EN_Pin equ P0.2
+  0090                 6     LCD1602_Data_Port equ P1
+  00D0                 7     DS1307_Address equ 0d0h
+  00B6                 8     SDA equ P3.6
+  00B7                 9     SCL equ P3.7
+  0000                10     DS1307_Second_Reg equ 00h
+  0001                11     DS1307_Minutes_Reg equ 01h
+  0002                12     DS1307_Hours_Reg equ 02h
+  0003                13     DS1307_Day_Reg equ 03h
+  0004                14     DS1307_Date_Reg equ 04h
+  0005                15     DS1307_Month_Reg equ 05h
+  0006                16     DS1307_Year_Reg equ 06h
+  0007                17     DS1307_Control_Reg equ 07h
+  0008                18     DS1307_Ram equ 08h
+  0001                19     LCD_Clear_Screen equ 01h
+  0002                20     LCD_Reset_Cursor equ 02h
+  0004                21     LCD_Input_Set equ 04h
+  0008                22     LCD_Display_Switch equ 08h
+  0010                23     LCD_Shift equ 10h
+  0020                24     LCD_Function_Set equ 20h
+  0040                25     LCD_Set_CGRAM_Addr equ 40h
+  0080                26     LCD_Set_DDRAM_Addr equ 80h
+                      27     
+                      28     
+                      29     
+0000                  30     org 0000h
+0000 2100             31             jmp Start
+                      32     
+0030                  33     org 0030h
+0030 4D4F4E00         34         monday: db "MON", 0 
+0034 54554500         35         tuesday: db "TUE", 0
+0038 57454400         36         wednesday: db "WED", 0
+003C 54485500         37         thursday: db "THU", 0
+0040 46524900         38         friday: db "FRI", 0
+0044 53415400         39         saturday: db "SAT", 0 
+0048 53554E00         40         sunday: db "SUN", 0
+                      41     
+0100                  42     org 0100h
+0100                  43     Start:
+                      44             
+                      45     
+0100                  46     MainLoop:
+0100 80FE             47             jmp MainLoop
+                      48     
+                      49     ;-----------------------------------------------
+                      50     ; I2C Interface
+                      51     ;-----------------------------------------------
+0102                  52     I2C_Start:
+0102 D2B6             53           setb SDA  ; ensure SDA is high
+0104 D2B7             54           setb SCL  ; ensure SCL is high
+0106 C2B6             55           clr SDA   ; Pull SDA to low
+0108 22               56           ret
+0109                  57     I2C_Send_Byte:
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE     2
+
+0109 7F08             58           mov R7, #8;                               (1 cycle)
+010B                  59           send_loop:
+010B C2B7             60           clr SCL   ; ready for data transfer       (1 cycle)
+010D 33               61           rlc A ;                                   (1 cycle)
+010E 92B6             62           mov SDA, C ;                              (2 cycles)
+0110 3167             63           acall delay_3us ;                         (6 cycles)
+0112 D2B7             64           setb SCL  ;                               (1 cycle)
+0114 3167             65           acall delay_3us;                          (6 cycles)
+0116 00               66           nop       ;                               (1 cycle)
+0117 DFF2             67           DJNZ R7, send_loop ;                      (2 cycles)
+0119 C2B7             68           clr SCL   ;                               (1 cycle)
+011B 22               69           ret;                                      (2 cycles)
+011C                  70     I2C_Read_ACK:
+011C 316A             71           acall delay_2us;                          (4 cycles)
+011E D2B6             72           setb SDA  ;                               (1 cycle)
+0120 D2B7             73           setb SCL ;                                (1 cycles)
+0122 A2B6             74           mov C, SDA;                               (1 cycle)
+0124 00               75           nop;                                      (1 cycle)
+0125 00               76           nop;                                      (1 cycle)
+0126 22               77           ret ;                                     (2 cycles)
+0127                  78     I2C_Read_Byte:
+0127 7F08             79           mov R7, #8; counter                       (1 cycle)
+0129                  80           read_loop:
+0129 D2B7             81           setb SCL;                                 (1 cycle)
+012B A2B6             82           mov C, SDA; read SDA's state              (1 cycle)
+012D 33               83           rlc A;    shift read bit to A register    (1 cycle)
+012E 3167             84           acall delay_3us;                          (6 cycles)
+0130 00               85           nop;                                      (1 cycle)
+0131 C2B7             86           clr SCL;                                  (1 cycle)
+0133 3167             87           acall delay_3us;                          (6 cycles)
+0135 00               88           nop;                                      (1 cycle)
+0136 DFF1             89           DJNZ R7, read_loop;                       (2 cycles)
+0138 D2B7             90           setb SCL;                                 (1 cycle) 
+013A 22               91           ret;                                      (2 cycles)
+013B                  92     I2C_Send_Ack:
+013B C2B6             93           clr SDA;                                  (1 cycle)
+013D 316A             94           acall delay_2us;                          (4 cycles)
+013F D2B7             95           setb SCL;                                 (1 cycle)
+0141 22               96           ret;                                      (2 cycles)
+0142                  97     I2C_Send_NoAck:
+0142 00               98           nop;                                      (1 cycle)
+0143 316A             99           acall delay_2us;                          (4 cycles)
+0145 C2B7            100           clr SCL;                                  (1 cycle)
+0147 3162            101           acall delay_4us;                          (8 cycles)
+0149 D2B6            102           setb SDA;                                 (1 cycle)
+014B D2B7            103           setb SCL;                                 (1 cycle)
+014D 22              104           ret;                                      (2 cycles)
+014E                 105     I2C_Stop:
+014E 00              106           nop ;                                     (1 cycle)
+014F 00              107           nop ;                                     (1 cycle)
+0150 C2B7            108           clr SCL   ; Push SCL to high              (1 cycle)
+0152 C2B6            109           clr SDA;                                  (1 cycle)
+0154 3162            110           acall delay_4us;                          (8 cycles)
+0156 D2B7            111           setb SCL;                                 (1 cycle)
+0158 D2B6            112           setb SDA  ;stop condition                 (1 cycle)
+015A 22              113           ret;                                      (2 cycle)
+                     114     ;-----------------------------------------------;
+                     115     ;delay functions
+                     116     ;-----------------------------------------------;
+015B                 117     delay_5us:
+015B 00              118           nop ;                                     (1 cycle)
+015C 00              119           nop ;                                     (1 cycle)
+015D 00              120           nop ;                                     (1 cycle)
+015E 00              121           nop ;                                     (1 cycle)
+015F 00              122           nop ;                                     (1 cycle)
+0160 00              123           nop ;                                     (1 cycle)
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE     3
+
+0161 22              124           ret       ;                               (2 cycles)
+0162                 125     delay_4us:
+0162 00              126           nop ;                                     (1 cycle)
+0163 00              127           nop ;                                     (1 cycle)
+0164 00              128           nop ;                                     (1 cycle)
+0165 00              129           nop ;                                     (1 cycle)
+0166 22              130           ret       ;                               (2 cycles)
+0167                 131     delay_3us:
+0167 00              132           nop ;                                     (1 cycle)
+0168 00              133           nop ;                                     (1 cycle)
+0169 22              134           ret       ;                               (2 cycles)
+016A                 135     delay_2us:
+016A 22              136           ret       ;                               (2 cycles)
+016B                 137     delay_1ms:
+016B 79A6            138           mov R1, #166;                             (1 cycle)
+016D                 139           delay_loop:
+016D 315B            140           acall delay_5us;                          (10 cycles)
+016F D9FC            141           djnz R1, delay_loop;                      (2 cycles)
+0171 00              142           nop
+0172 00              143           nop
+0173 00              144           nop
+0174 22              145           ret;                                      (2 cycles)
+                     146     ; su dung thanh ghi R2 lam tham so (ms > 1)
+                     147     ; todo: chua chinh xac
+0175                 148     delay_ms:
+                     149           ;dec R2;                                  (1 cycle)
+0175                 150           delay_ms_loop:
+0175 316B            151           acall delay_1ms;                          (2000 cycles)
+0177 DAFC            152           djnz R2, delay_ms_loop;                   (2 cycle)
+0179 22              153           ret;                                      (2 cycle)
+                     154          
+                     155     ;-----------------------------------------------;
+                     156     ;lcd 8-bit parallel 
+                     157     ;-----------------------------------------------;
+                     158     ; brief: send instuction code to lcd 1602
+                     159     ; use register A as instruction code byte to be sent
+017A                 160     LCD1602_Send_Ins:
+017A D282            161             setb LCD1602_EN_Pin
+017C C281            162             clr LCD1602_RW_Pin
+017E C280            163             clr LCD1602_RS_Pin
+0180 F590            164             mov LCD1602_Data_Port, A
+0182 3167            165             acall delay_3us
+0184 C282            166             clr LCD1602_EN_Pin
+0186 7A02            167             mov R2, #2d
+0188 3175            168             acall delay_ms
+018A 22              169             ret
+                     170             
+                     171     ; brief: send data to lcd 1602's RAM (DDRAM, CGRAM)
+                     172     ; use register A as data byte to be sent
+018B                 173     LCD1602_Send_Data:
+018B D282            174             setb LCD1602_EN_Pin
+018D C281            175             clr LCD1602_RW_Pin
+018F D280            176             setb LCD1602_RS_Pin
+0191 F590            177             mov LCD1602_Data_Port, A
+0193 3167            178             acall delay_3us
+0195 C282            179             clr LCD1602_EN_Pin
+0197 7A02            180             mov R2, #2d
+0199 3175            181             acall delay_ms
+019B 22              182             ret
+                     183     
+                     184     ;-----------------------------------------------
+                     185     ; LCD_INIT
+                     186     ; Khởi tạo LCD1602 chế độ 8-bit
+                     187     ;-----------------------------------------------
+019C                 188     LCD_INIT:
+                     189             ; initialize lcd 1602
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE     4
+
+019C 7A0F            190             mov R2, #15d
+019E 3175            191             acall delay_ms
+01A0 7430            192             mov A, #30h
+01A2 317A            193             acall LCD1602_Send_Ins
+01A4 7A05            194             mov R2, #5d
+01A6 3175            195             acall delay_ms
+01A8 7430            196             mov A, #30h
+01AA 317A            197             acall LCD1602_Send_Ins
+01AC 316A            198             acall delay_2us
+01AE 7430            199             mov A, #30h
+01B0 317A            200             acall LCD1602_Send_Ins
+01B2 7A0A            201             mov R2, #10d
+01B4 3175            202             acall delay_ms
+                     203             
+                     204             ;setup lcd 1602
+01B6 7438            205             mov A, #38h ; function set -> DL = 1 (8 bit mode), N = 1 (2 line), F = 0 (5 x 8 cha
+                             racters)
+01B8 317A            206             acall LCD1602_Send_Ins
+01BA 7408            207             mov A, #08h ; turn the display, cursor, blinking off (D = 0, C = 0, B = 0)
+01BC 317A            208             acall LCD1602_Send_Ins
+01BE 7401            209             mov A, #01h ; screen clear instruction code
+01C0 317A            210             acall LCD1602_Send_Ins
+01C2 7406            211             mov A, #06h ; input set -> I/D = 1 (Increment mode), S = 0 (no shift)
+01C4 317A            212             acall LCD1602_Send_Ins
+01C6 740C            213             mov A, #0Ch ; turn the dislay on, D = 1
+01C8 317A            214             acall LCD1602_Send_Ins    
+01CA 22              215         ret 
+                     216     
+                     217     ;-----------------------------------------------
+                     218     ; LCD_CLEAR
+                     219     ; Gửi lệnh 0x01 để xóa toàn bộ nội dung LCD
+                     220     ; Gọi LCD1602_Send_Ins, không cần thay đổi gì thêm
+                     221     ;-----------------------------------------------
+01CB                 222     LCD_Clear:
+01CB 7401            223         mov A, #01h            ; Lệnh 0x01 clear
+01CD 317A            224         acall LCD1602_Send_Ins ; 
+01CF 22              225         ret
+                     226     
+                     227     
+                     228     ;-----------------------------------------------
+                     229     ; LCD_SETCURSOR
+                     230     ; Đặt vị trí con trỏ tại (row, col)
+                     231     ; - Input: R0 = row (0 hoặc 1), R1 = col (0..15)
+                     232     ; - Tính địa chỉ DDRAM:
+                     233     ;     row = 0 → addr = 0x80 + col
+                     234     ;     row = 1 → addr = 0xC0 + col
+                     235     ; - Gán addr vào A, rồi gọi LCD1602_Send_Ins
+                     236     ;-----------------------------------------------
+                     237     ;Đặt vị trí con trỏ tại (row, col)
+01D0                 238     LCD_SETCURSOR:
+01D0 E8              239         mov A, R0           ; Kiểm tra hàng (row)
+01D1 B40005          240         cjne A, #0, Row1    ; Nếu R0 ≠ 0 → row 1
+                     241     ; Row = 0
+01D4 7480            242         mov A, #80h         ; 
+01D6 29              243         add A, R1           ; A = 0x80 + col
+01D7 8003            244         sjmp SetCursor
+                     245     
+01D9                 246     Row1:
+01D9 74C0            247         mov A, #0C0h        ; Base address for row 1
+01DB 29              248         add A, R1           ; A = 0xC0 + col
+                     249     
+01DC                 250     SetCursor:
+01DC 317A            251         acall LCD1602_Send_Ins
+01DE 22              252         ret
+                     253     
+                     254     ;-----------------------------------------------
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE     5
+
+                     255     ;LCD_Send_Char
+                     256     ;-----------------------------------------------
+                     257     ; Gửi một ký tự đến LCD
+                     258     ; A = ký tự ASCII cần hiển thị
+01DF                 259     LCD_Send_Char:
+01DF 318B            260         acall LCD1602_Send_Data
+01E1 22              261         ret
+                     262     
+                     263     
+                     264     ;-----------------------------------------------
+                     265     ; LCD_SEND_STRING
+                     266     ; Gửi chuỗi ký tự đến LCD
+                     267     ; - DPTR trỏ đến chuỗi kết thúc bằng 0 (null-terminated)
+                     268     ;-----------------------------------------------
+01E2                 269     LCD_SEND_STRING:
+01E2 E4              270         clr A                    ; Đặt offset ban đầu = 0
+01E3                 271     Next_Char:
+01E3 C0E0            272         push ACC
+01E5 93              273         movc A, @A+DPTR          ; Đọc ký tự từ ROM (DPTR + offset A)
+01E6 6007            274         jz Done                  ; Nếu A == 0 (kết thúc chuỗi), thoát
+01E8 318B            275         acall LCD1602_Send_Data  ; Gửi ký tự ra LCD
+01EA D0E0            276         pop ACC 
+01EC 04              277         inc A                    ; Tăng offset
+01ED 80F4            278         sjmp Next_Char           ; Lặp lại
+01EF                 279     Done:
+01EF 22              280         ret
+                     281     ;-----------------------------------------------
+                     282     ;-----------------------------------------------
+                     283     ; DS1307_WRITE_BYTE
+                     284     ; Ghi 1 byte dữ liệu vào DS1307 tại địa chỉ reg
+                     285     ; Tham số: A chứa địa chỉ thanh ghi (reg)
+                     286     ;          B chứa dữ liệu cần ghi (data)                
+                     287     ;-----------------------------------------------
+01F0                 288     DS1307_WRITE_BYTE:
+01F0 C0E0            289             push ACC
+01F2 74D0            290             mov A, #DS1307_Address
+01F4 3102            291             acall I2C_Start
+01F6 3109            292             acall I2C_Send_Byte
+01F8 311C            293             acall I2C_Read_ACK
+01FA D0E0            294         pop ACC
+01FC 3109            295             acall I2C_Send_Byte
+01FE 311C            296             acall I2C_Read_ACK
+0200 E5F0            297             mov A, B
+0202 3109            298             acall I2C_Send_Byte
+0204 311C            299             acall I2C_Read_ACK
+0206 314E            300             acall I2C_Stop
+0208 22              301             ret
+                     302     
+                     303     ;-----------------------------------------------
+                     304     ; DS1307_READ_BYTE
+                     305     ; Đọc 1 byte dữ liệu từ DS1307 tại địa chỉ reg
+                     306     ; Tham số: R0 chứa địa chỉ thanh ghi (reg)
+                     307     ; Trả về: A chứa dữ liệu đọc được từ DS1307
+                     308     ;huy
+                     309     ;-----------------------------------------------
+0209                 310     DS1307_READ_BYTE:
+0209 C0E0            311             PUSH Acc
+020B 74D0            312             mov A, #DS1307_Address
+020D 3102            313             acall I2C_Start
+020F 3109            314             acall I2C_Send_Byte
+0211 311C            315             acall I2C_Read_ACK
+0213 D0E0            316             pop Acc
+0215 3109            317             acall I2C_Send_Byte
+0217 311C            318             acall I2C_Read_ACK
+0219 314E            319             acall I2C_Stop
+021B 74D0            320             mov A, #DS1307_Address
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE     6
+
+021D 4401            321             orl A, #1
+021F 3102            322             acall I2C_Start
+0221 3109            323             acall I2C_Send_Byte
+0223 311C            324             acall I2C_Read_ACK
+0225 3127            325             acall I2C_Read_Byte
+0227 3142            326             acall I2C_Send_NoAck
+0229 314E            327             acall I2C_Stop
+022B 22              328             RET
+                     329     
+                     330     
+                     331     ;-----------------------------------------------
+                     332     ; DS1307_SET_SQW_FREQ
+                     333     ; Cài đặt tần số xung output của DS1307
+                     334     ; Tham số:    A = 0x00 -> 1Hz
+                     335     ;               A = 0x01 -> 4kHz
+                     336     ;               A = 0x02 -> 8kHz
+                     337     ;               A = 0x03 -> 32kHz 
+                     338     ;-----------------------------------------------
+                     339     ;-----------------------------------------------
+                     340     ; DS1307_SET_SQW_FREQ
+                     341     ; Cài đặt tần số xung output của DS1307
+                     342     ; Tham số:    A = 0x00 -> 1Hz
+                     343     ;               A = 0x01 -> 4kHz
+                     344     ;               A = 0x02 -> 8kHz
+                     345     ;               A = 0x03 -> 32kHz 
+                     346     ;-----------------------------------------------
+022C                 347     DS1307_SET_SQW_FREQ:
+022C                 348             sqw_1hz:
+022C B40004          349             cjne A, #00h, sqw_4kHz
+022F 7410            350         mov A, #10h
+0231 8010            351         sjmp final_set_freq
+                     352             
+0233                 353             sqw_4kHz:
+0233 B40104          354             cjne A, #01h, sqw_8kHz
+0236 7411            355         mov A, #11h
+0238 8009            356         sjmp final_set_freq
+                     357     
+023A                 358             sqw_8kHz:
+023A B40204          359             cjne A, #02h, sqw_32kHz
+023D 7412            360             mov A, #12h
+023F 8002            361         sjmp final_set_freq
+                     362     
+0241                 363             sqw_32kHz:
+0241 7413            364         mov A, #13h
+                     365             
+0243                 366         final_set_freq:
+0243 F5F0            367             mov B, A
+0245 7407            368             mov A, #DS1307_Control_Reg
+0247 31F0            369             acall DS1307_WRITE_BYTE
+0249 22              370         ret 
+                     371     
+                     372     
+                     373     ;-----------------------------------------------
+                     374     ; DS1307_SET_SQW
+                     375     ; Bật tắt xung output của DS1307
+                     376     ; Tham số:    C = 0 -> off
+                     377     ;           C = 1 -> on
+                     378     ;-----------------------------------------------
+024A                 379     DS1307_SET_SQW:
+024A 5008            380             jnc off
+024C                 381         on:
+024C 7407            382             mov A, #DS1307_Control_Reg 
+024E 5109            383         acall DS1307_READ_BYTE
+0250 4410            384         orl A, #10h
+0252 8006            385         sjmp final_set_sqw
+0254                 386         off:
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE     7
+
+0254 7407            387             mov A, #DS1307_Control_Reg 
+0256 5109            388         acall DS1307_READ_BYTE
+0258 54EF            389         anl A, #0efh
+025A                 390         final_set_sqw:
+025A F5F0            391         mov B, A 
+025C 7407            392         mov A, #DS1307_Control_Reg
+025E 31F0            393         acall DS1307_WRITE_BYTE
+0260 22              394         ret
+                     395     
+                     396     ;-----------------------------------------------
+                     397     ; DS1307_GET: Các hàm để lấy thông tin từ DS1307
+                     398     ;-----------------------------------------------
+                     399     
+                     400     ;-----------------------------------------------
+0261                 401     DS1307_GET_SECOND:
+0261 7400            402             MOV A, #DS1307_Second_Reg
+0263 5109            403             ACALL DS1307_READ_BYTE
+0265 F530            404             MOV 30H, A
+0267 22              405             RET
+                     406     ;-----------------------------------------------
+0268                 407     DS1307_GET_MINUTES:
+0268 7401            408             MOV A, #DS1307_Minutes_Reg
+026A 5109            409             ACALL DS1307_READ_BYTE
+026C F531            410             MOV 31H, A
+026E 22              411             RET
+                     412     ;-----------------------------------------------
+026F                 413     DS1307_GET_HOURS:       
+026F 7402            414             MOV A, #DS1307_Hours_Reg
+0271 5109            415             ACALL DS1307_READ_BYTE
+0273 F532            416             MOV 32H, A
+0275 22              417             RET
+                     418     ;-----------------------------------------------
+0276                 419     DS1307_GET_DAY: 
+0276 7403            420             MOV A, #DS1307_Day_Reg
+0278 5109            421             ACALL DS1307_READ_BYTE
+027A F533            422             MOV 33H, A
+027C 22              423             RET
+                     424     ;-----------------------------------------------
+027D                 425     DS1307_GET_DATE:        
+027D 7404            426             MOV A, #DS1307_Date_Reg
+027F 5109            427             ACALL DS1307_READ_BYTE
+0281 F534            428             MOV 34h, A
+0283 22              429             RET
+                     430             
+                     431     ;-----------------------------------------------
+0284                 432     DS1307_GET_MONTH:       
+0284 7405            433             MOV A, #DS1307_Month_Reg
+0286 5109            434             ACALL DS1307_READ_BYTE
+0288 F535            435             MOV 35H, A
+028A 22              436             RET
+                     437             
+                     438     ;-----------------------------------------------
+028B                 439     DS1307_GET_YEAR:        
+028B 7406            440             MOV A, #DS1307_Year_Reg
+028D 5109            441             ACALL DS1307_READ_BYTE
+028F F536            442             MOV 36H, A
+0291 22              443             RET     
+                     444     
+                     445     ;-----------------------------------------------
+                     446     ;HÀM SET_TIME
+                     447     ;HI?N TRUY?N GIÁ TR? C? Ð?NH VÔ 
+                     448     ;-----------------------------------------------
+0292                 449     DS1307_SET_SECOND:
+0292 F5F0            450             mov B , A
+0294 7400            451             mov A, #DS1307_Second_Reg
+0296 31F0            452             acall DS1307_WRITE_BYTE
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE     8
+
+0298 22              453             RET
+                     454             
+                     455     ;;-----------------------------------------------
+0299                 456     DS1307_SET_MINUTES:
+0299 F5F0            457             mov B , A
+029B 7401            458             mov A, #DS1307_Minutes_Reg
+029D 31F0            459             acall DS1307_WRITE_BYTE
+029F 22              460             RET
+                     461             
+                     462     ;;-----------------------------------------------
+02A0                 463     DS1307_SET_HOURS:
+02A0 F5F0            464             mov B , A
+02A2 7402            465             mov A, #DS1307_Hours_Reg
+02A4 31F0            466             acall DS1307_WRITE_BYTE
+02A6 22              467             RET
+                     468     
+                     469     ;;-----------------------------------------------
+02A7                 470     DS1307_SET_DAY:
+02A7 F5F0            471             mov B , A
+02A9 7403            472             mov A, #DS1307_Day_Reg
+02AB 31F0            473             acall DS1307_WRITE_BYTE
+02AD 22              474             RET
+                     475     
+                     476     ;;-----------------------------------------------
+02AE                 477     DS1307_SET_DATE:
+02AE F5F0            478             mov B , A
+02B0 7404            479             mov A, #DS1307_Date_Reg
+02B2 31F0            480             acall DS1307_WRITE_BYTE
+02B4 22              481             RET
+                     482             
+                     483     ;;-----------------------------------------------
+02B5                 484     DS1307_SET_MONTH:
+02B5 F5F0            485             mov B , A
+02B7 7405            486             mov A, #DS1307_Month_Reg
+02B9 31F0            487             acall DS1307_WRITE_BYTE
+02BB 22              488             RET     
+                     489             
+                     490     ;;-----------------------------------------------
+02BC                 491     DS1307_SET_YEAR:
+02BC F5F0            492             mov B , A
+02BE 7406            493             mov A, #DS1307_Year_Reg
+02C0 31F0            494             acall DS1307_WRITE_BYTE
+02C2 22              495             RET
+                     496             
+                     497     ;-----------------------------------------------
+                     498     ; CONVERT_BCD_TO_ASCII
+                     499     ; Chuyển 1 byte BCD sang 2 ký tự ASCII (ví dụ: 0x45 -> '4', '5')
+                     500     ; Đầu vào: A chứa giá trị BCD
+                     501     ; Đầu ra: R5 = ASCII hàng chục, R6 = ASCII hàng đơn vị
+                     502     ;-----------------------------------------------
+02C3                 503     CONVERT_BCD_TO_ASCII:
+02C3 FD              504         mov R5, A 
+02C4 540F            505         anl A, #0fh
+02C6 7E30            506         mov R6, #30h
+02C8 4E              507         orl A, R6
+02C9 FE              508         mov R6, A 
+02CA ED              509         mov A, R5 
+02CB C4              510         swap A          ; swap nibbles
+02CC 540F            511         anl A, #0fh 
+02CE 7D30            512         mov R5, #30h
+02D0 4D              513         orl A, R5 
+02D1 FD              514         mov R5, A 
+02D2 22              515         ret 
+                     516     
+                     517     ;........................................
+                     518     ;input :
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE     9
+
+                     519     ;output :
+                     520     ;........................................
+02D3                 521     convert_BCD_TO_NUMBER:
+02D3 C0E0            522         push ACC
+02D5 F5F0            523         mov B, A
+02D7 540F            524         anl A, #0Fh         
+02D9 D0E0            525         pop ACC
+02DB C4              526         swap A              
+02DC 540F            527         anl A, #0Fh           
+02DE F8              528         mov R0, A             
+02DF E5F0            529         mov A, B
+02E1 75F00A          530         mov B, #10
+02E4 A4              531         mul AB                
+02E5 28              532         add A, R0             
+02E6 22              533         ret
+                     534     
+                     535     
+                     536     ;........................................
+                     537     ; Input: A ch?a decimal (VD: 25)
+                     538     ; Output: A = BCD (0x25)
+                     539     ;........................................
+02E7                 540     convert_NUMBER_TO_BCD:
+02E7 75F00A          541         mov B, #10
+02EA 84              542         div AB
+02EB C4              543         swap A              
+02EC 54F0            544         anl A, #0F0h
+02EE 45F0            545         orl A, B            
+02F0 22              546         ret
+                     547     
+                     548     ;---------------------------------------------------
+                     549     ; DS1307_CHANGE_CLOCK_FORMAT
+                     550     ; Thay đổi định dạng hiển thị thời gian (12h/24h) của DS1307
+                     551     ; Input: C (bit). Nếu C = 0 -> định dạng 24h
+                     552     ;                   Nếu C = 1 -> định dạng 12h
+                     553     ; Output phụ: Nếu là 12h, bit 5 cho biết AM/PM:
+                     554     ;              0 = AM, 1 = PM → lưu vào B.1 để dùng bên ngoài
+                     555     ; Tóm lại: Hàm đã đọc được dữ liệu giờ (tùy chế độ) lưu vào than
+                             h ghi,
+                     556     ; còn AM/PM thì dữ liệu đã được ghi vào thanh ghi B.1
+                     557     ; khi viết display thì cần viết thêm hàm display AM PM kiểm tra B.1
+                     558     ; Lưu ý: hàm này chỉ là hàm ĐỌC và CẬP NHẬT DỮ LIỆU chứ chưa phải 
+                             là hàm hiển thị cuối cùng 
+                     559     ;---------------------------------------------------
+02F1                 560     DS1307_CHANGE_CLOCK_FORMAT:
+02F1 92F0            561         mov B.0, C     
+                     562     
+02F3 C0E0            563         push ACC
+                     564     
+02F5 A802            565         mov R0, DS1307_Hours_Reg
+02F7 5109            566         acall DS1307_READ_BYTE      
+02F9 F540            567         mov 40H, A                  
+                     568     
+02FB A2F0            569         mov C, B.0
+02FD 505F            570         jnc CLOCK_24H_FORMAT        ; C = 0 => nh?y d?n d?nh d?ng 24h
+                     571     
+02FF                 572     CLOCK_12H_FORMAT:
+                     573         ; kiem tra xem gio mac dinh da la dinh dang 12h hay chua nhe bit 6 = 1
+02FF E540            574         mov A, 40H
+0301 20E64E          575         jb ACC.6, FORMAT_ALREDY_12H 
+                     576         
+                     577         ; chuyen tu dinh dang 24h sang 12h
+0304 541F            578         anl A, #00011111b   ; lay gia tri gio hien tai
+                     579         
+                     580         ; chuyen tu BCD sang thap phan
+0306 C0E0            581         push ACC
+0308 51D3            582         acall convert_BCD_TO_NUMBER
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE    10
+
+030A F9              583         mov R1, A
+030B D0E0            584         pop ACC
+                     585         
+                     586         ;truong hop dac biet
+030D B9000C          587         cjne R1, #0, CHECK_FOR_12 ; khac 0, nhay vo dinh dang luon
+                     588         
+                     589         ;oo:xx => 12:xx AM
+0310 740C            590         mov A, #12
+0312 51E7            591         acall convert_NUMBER_TO_BCD
+0314 4440            592         orl A, #01000000b       ; dinh dang 12h bit.6 = 1
+0316 F540            593         mov 40H, A
+0318 C2F1            594         clr B.1                 ; B.1 = 0 => AM
+031A 619E            595         jmp WRITE_BACK
+                     596         
+                     597         
+031C                 598     CHECK_FOR_12:
+031C B90C0E          599         cjne R1, #12, CHECK_FOR_PM_OR_AM ; neu gio khac 12 nhay
+                     600         
+                     601         ;12:xx -> 12:xx PM
+031F 740C            602         mov A, #12
+0321 51E7            603         acall convert_NUMBER_TO_BCD
+0323 4440            604         orl A, #01000000b    ; set bit 6 len 1 nha ae (12h)
+0325 4420            605         orl A, #00100000b   ; set bit 5 len 1 (PM)
+0327 F540            606         mov 40H, A
+0329 D2F1            607         setb B.1    
+032B 8071            608         sjmp WRITE_BACK
+                     609         
+                     610         
+032D                 611     CHECK_FOR_PM_OR_AM:
+032D C3              612         clr C        ; xoa co carry truoc khi tru
+032E E9              613         mov A, R1
+032F 940C            614         subb A, #12       ;so sanh voi 12
+0331 4012            615         jc AM_SETTING       ; neu < 12 nhay vo thang loz nay
+                     616         
+                     617         
+                     618         ; > 12 (13:xx => 1:xx PM)
+0333 2400            619         add A, #0     ; clear carry flag gia tri khong doi chi setup C = 0
+                     620         ;clr C
+0335 240C            621         add A, #12      ; khong phuc lai gia tri ban dau
+0337 940C            622         subb A, #12     ; tru cho 12 de lay gio muon lay vi du: 13h -> 1h
+0339 51E7            623         acall convert_NUMBER_TO_BCD
+033B 4440            624         orl A, #01000000b
+033D 4420            625         orl A, #00100000b
+033F F540            626         mov 40H, A
+0341 D2F1            627         setb B.1
+0343 8059            628         sjmp WRITE_BACK
+                     629         
+0345                 630     AM_SETTING: ;TH < 12
+0345 E9              631         mov A, R1
+0346 51E7            632         acall convert_NUMBER_TO_BCD
+0348 4440            633         orl A, #01000000b
+034A 54DF            634         anl A, #11011111b
+034C F540            635         mov 40H, A
+034E C2F1            636         clr B.1
+0350 804C            637         sjmp WRITE_BACK
+                     638         
+                     639         
+0352                 640     FORMAT_ALREDY_12H:
+                     641         ; da la dinh dang 12h, kiem tra AM / PM
+0352 5420            642         anl A, #00100000b
+0354 6004            643         jz AM_CASE        
+                     644         
+0356 D2F1            645         setb B.1
+0358 8044            646         sjmp WRITE_BACK
+                     647         
+                     648     
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE    11
+
+035A                 649     AM_CASE:
+035A C2F1            650         clr B.1                     ; Ghi nh?: B.1 = 0 ? AM
+035C 8040            651         sjmp WRITE_BACK
+                     652     
+035E                 653     CLOCK_24H_FORMAT:
+035E E540            654         mov A, 40H
+0360 30E635          655         jnb ACC.6, FORMAT_ALREDY_24H
+                     656         
+                     657         
+                     658         ;chuyen 12h sang 24h
+                     659         ;lay gia tri gio
+0363 541F            660         anl A, #00011111b
+                     661         
+                     662         
+0365 C0E0            663         push ACC
+0367 51D3            664         acall convert_BCD_TO_NUMBER
+0369 F9              665         mov R1, A
+036A D0E0            666         pop ACC
+                     667         
+                     668         
+                     669         ;kiem tra bit PM bit = 0
+036C E540            670         mov A, 40H
+036E 30E50D          671         jnb ACC.5, CHECK_FOR_12AM
+                     672         
+                     673         
+                     674         ; neu la PM cong them 12 tru truong hop 12h
+0371 E9              675         mov A, R1
+0372 B40C04          676         cjne A, #12, ADD_12_FOR_PM
+                     677         
+                     678         ;truong hop 12 PM => 12:00
+0375 740C            679         mov A, #12
+0377 800D            680         sjmp CONVERT_TO_24H
+                     681         
+                     682         
+0379                 683     ADD_12_FOR_PM:
+0379 E9              684         mov A, R1
+037A 240C            685         add A, #12
+037C 8008            686         sjmp CONVERT_TO_24H
+                     687         
+037E                 688     CHECK_FOR_12AM:
+037E E9              689         mov A, R1
+037F B40C04          690         cjne A, #12, CONVERT_TO_24H   ;kiem tra xem co phai 12AM khong
+                     691         
+                     692         ; 12AM -> 00
+0382 7400            693         mov A, #0
+0384 545F            694         anl A, #1011111b
+                     695         
+0386                 696     CONVERT_TO_24H:
+0386 51E7            697         acall convert_NUMBER_TO_BCD;
+0388 54BF            698         anl A, #10111111b
+038A F540            699         mov 40H, A
+038C C2F1            700         clr B.1
+038E 800E            701         sjmp WRITE_BACK
+                     702         
+0390 D0E0            703         pop ACC
+0392 54BF            704         anl A, #10111111b
+0394 F540            705         mov 40H, A
+0396 C2F1            706         clr B.1                     
+                     707         
+                     708         
+0398                 709     FORMAT_ALREDY_24H:
+0398 54BF            710         anl A, #10111111b
+039A F540            711         mov 40H, A
+039C C2F1            712         clr B.1
+                     713     
+                     714         
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE    12
+
+                     715         
+039E                 716     WRITE_BACK:
+039E 7802            717         mov R0, #DS1307_Hours_Reg
+03A0 E540            718         mov A, 40H
+03A2 31F0            719         acall DS1307_WRITE_BYTE
+                     720         
+03A4 D0E0            721         pop ACC
+                     722         
+03A6 22              723         ret         
+                     724     
+                     725     
+                     726     ;-----------------------------------------------
+                     727     ; DISPLAY_TIME_TO_LCD
+                     728     ; Hiển thị thời gian hiện tại lên LCD1602 ở hàng 1, cột 0
+                     729     ; Định dạng: HH:MM:SS
+                     730     ; mục đích của hàm này là sao? là dùng để gọi các hàm đã viết phía t
+                             rên để trong hàm main chỉ cần gọi hàm DISPLAY_TIME_TO_LCD
+                     731     ; và thêm một số cái delay thì sẽ hiện giờ 
+                     732     ;-----------------------------------------------
+03A7                 733     DISPLAY_HOURS_TO_LCD:
+03A7 516F            734             ACALL DS1307_GET_HOURS   
+03A9 E530            735             MOV A, 30H  ; hours
+03AB 51C3            736             ACALL CONVERT_BCD_TO_ASCII 
+03AD ED              737             MOV A, R5
+03AE 318B            738             ACALL LCD1602_Send_Data 
+03B0 EE              739             MOV A, R6
+03B1 318B            740             ACALL LCD1602_Send_Data
+03B3 743A            741             MOV A, #03Ah ; hienthi dau :
+03B5 318B            742             ACALL LCD1602_Send_Data
+03B7 22              743             RET
+                     744     
+03B8                 745     DISPLAY_MINUTES_TO_LCD:
+03B8 5168            746             ACALL DS1307_GET_MINUTES
+03BA E531            747             MOV A, 31H  ; minutes
+03BC 51C3            748             ACALL CONVERT_BCD_TO_ASCII 
+03BE ED              749             MOV A, R5
+03BF 318B            750             ACALL LCD1602_Send_Data
+03C1 EE              751             MOV A, R6
+03C2 318B            752             ACALL LCD1602_Send_Data
+03C4 743A            753             MOV A, #03Ah
+03C6 318B            754             ACALL LCD1602_Send_Data
+03C8 22              755             RET
+                     756     
+03C9                 757     DISPLAY_SECONDS_TO_LCD:
+03C9 5192            758             ACALL DS1307_SET_SECOND
+03CB E532            759             MOV A, 32H ; seconds
+03CD 51C3            760             ACALL CONVERT_BCD_TO_ASCII 
+03CF ED              761             MOV A, R5
+03D0 318B            762             ACALL LCD1602_Send_Data
+03D2 EE              763             MOV A, R6
+03D3 318B            764             ACALL LCD1602_Send_Data
+03D5 743A            765             MOV A, #03Ah
+03D7 318B            766             ACALL LCD1602_Send_Data
+03D9 22              767             RET
+                     768     
+03DA                 769     DISPLAY_DAY_TO_LCD:
+03DA 5176            770             ACALL DS1307_GET_DAY     ; -> 33H
+03DC E533            771             MOV A, 33H       ; A = thứ (1..7)
+03DE 14              772             DEC A            ; Đổi về 0..6
+03DF 75F004          773             MOV B, #4        ; Mỗi chuỗi dài 4 byte (3 + null)
+03E2 A4              774             MUL AB           ; DPTR = DayStrings + A*4
+03E3 900030          775             MOV DPTR, #0030h
+03E6 2582            776             ADD A, DPL
+03E8 F582            777             MOV DPL, A
+03EA E4              778             CLR A
+03EB 3583            779             ADDC A, DPH
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE    13
+
+03ED F583            780             MOV DPH, A
+                     781     
+03EF                 782     DISPLAY_DATE_TO_LCD:
+03EF 517D            783             ACALL DS1307_GET_DATE    ; -> 34H
+03F1 5184            784             ACALL DS1307_GET_MONTH   ; -> 35H
+03F3 518B            785             ACALL DS1307_GET_YEAR    ; -> 36H
+                     786             
+03F5 E533            787             MOV A, 33H ; date
+03F7 51C3            788             ACALL CONVERT_BCD_TO_ASCII 
+03F9 ED              789             MOV A, R5
+03FA 318B            790             ACALL LCD1602_Send_Data
+03FC EE              791             MOV A, R6
+03FD 318B            792             ACALL LCD1602_Send_Data
+03FF 742F            793             MOV A, #02Fh
+0401 318B            794             ACALL LCD1602_Send_Data
+                     795             
+                     796             
+0403 E534            797             MOV A, 34H ; month
+0405 51C3            798             ACALL CONVERT_BCD_TO_ASCII 
+0407 ED              799             MOV A, R5
+0408 318B            800             ACALL LCD1602_Send_Data
+040A EE              801             MOV A, R6
+040B 318B            802             ACALL LCD1602_Send_Data
+040D 742F            803             MOV A, #02Fh
+040F 318B            804             ACALL LCD1602_Send_Data
+                     805             
+                     806             
+0411 E535            807             MOV A, 35H ; year
+0413 51C3            808             ACALL CONVERT_BCD_TO_ASCII 
+0415 ED              809             MOV A, R5
+0416 318B            810             ACALL LCD1602_Send_Data
+0418 EE              811             MOV A, R6
+0419 318B            812             ACALL LCD1602_Send_Data
+041B 742F            813             MOV A, #02Fh
+041D 318B            814             ACALL LCD1602_Send_Data
+                     815             
+041F 22              816             RET
+                     817     
+0420                 818     DISPLAY_TIME_TO_LCD:
+0420 7800            819             MOV R0, #0
+0422 7900            820             MOV R1, #0
+0424 31D0            821             ACALL LCD_SETCURSOR
+0426 71DA            822             ACALL DISPLAY_DAY_TO_LCD
+0428 71EF            823             ACALL DISPLAY_DATE_TO_LCD
+                     824     
+042A 7801            825             MOV R0, #1
+042C 7800            826             MOV R0, #0
+042E 31D0            827             ACALL LCD_SETCURSOR
+0430 71A7            828             ACALL DISPLAY_HOURS_TO_LCD
+0432 71B8            829             ACALL DISPLAY_MINUTES_TO_LCD
+0434 71C9            830             ACALL DISPLAY_SECONDS_TO_LCD
+                     831     
+0436 22              832             RET
+                     833     
+                     834     end
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE    14
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E                     T Y P E  V A L U E   ATTRIBUTES
+
+ACC. . . . . . . . . . . .  D ADDR   00E0H   A   
+ADD_12_FOR_PM. . . . . . .  C ADDR   0379H   A   
+AM_CASE. . . . . . . . . .  C ADDR   035AH   A   
+AM_SETTING . . . . . . . .  C ADDR   0345H   A   
+B. . . . . . . . . . . . .  D ADDR   00F0H   A   
+CHECK_FOR_12 . . . . . . .  C ADDR   031CH   A   
+CHECK_FOR_12AM . . . . . .  C ADDR   037EH   A   
+CHECK_FOR_PM_OR_AM . . . .  C ADDR   032DH   A   
+CLOCK_12H_FORMAT . . . . .  C ADDR   02FFH   A   
+CLOCK_24H_FORMAT . . . . .  C ADDR   035EH   A   
+CONVERT_BCD_TO_ASCII . . .  C ADDR   02C3H   A   
+CONVERT_BCD_TO_NUMBER. . .  C ADDR   02D3H   A   
+CONVERT_NUMBER_TO_BCD. . .  C ADDR   02E7H   A   
+CONVERT_TO_24H . . . . . .  C ADDR   0386H   A   
+DELAY_1MS. . . . . . . . .  C ADDR   016BH   A   
+DELAY_2US. . . . . . . . .  C ADDR   016AH   A   
+DELAY_3US. . . . . . . . .  C ADDR   0167H   A   
+DELAY_4US. . . . . . . . .  C ADDR   0162H   A   
+DELAY_5US. . . . . . . . .  C ADDR   015BH   A   
+DELAY_LOOP . . . . . . . .  C ADDR   016DH   A   
+DELAY_MS . . . . . . . . .  C ADDR   0175H   A   
+DELAY_MS_LOOP. . . . . . .  C ADDR   0175H   A   
+DISPLAY_DATE_TO_LCD. . . .  C ADDR   03EFH   A   
+DISPLAY_DAY_TO_LCD . . . .  C ADDR   03DAH   A   
+DISPLAY_HOURS_TO_LCD . . .  C ADDR   03A7H   A   
+DISPLAY_MINUTES_TO_LCD . .  C ADDR   03B8H   A   
+DISPLAY_SECONDS_TO_LCD . .  C ADDR   03C9H   A   
+DISPLAY_TIME_TO_LCD. . . .  C ADDR   0420H   A   
+DONE . . . . . . . . . . .  C ADDR   01EFH   A   
+DPH. . . . . . . . . . . .  D ADDR   0083H   A   
+DPL. . . . . . . . . . . .  D ADDR   0082H   A   
+DS1307_ADDRESS . . . . . .  N NUMB   00D0H   A   
+DS1307_CHANGE_CLOCK_FORMAT  C ADDR   02F1H   A   
+DS1307_CONTROL_REG . . . .  N NUMB   0007H   A   
+DS1307_DATE_REG. . . . . .  N NUMB   0004H   A   
+DS1307_DAY_REG . . . . . .  N NUMB   0003H   A   
+DS1307_GET_DATE. . . . . .  C ADDR   027DH   A   
+DS1307_GET_DAY . . . . . .  C ADDR   0276H   A   
+DS1307_GET_HOURS . . . . .  C ADDR   026FH   A   
+DS1307_GET_MINUTES . . . .  C ADDR   0268H   A   
+DS1307_GET_MONTH . . . . .  C ADDR   0284H   A   
+DS1307_GET_SECOND. . . . .  C ADDR   0261H   A   
+DS1307_GET_YEAR. . . . . .  C ADDR   028BH   A   
+DS1307_HOURS_REG . . . . .  N NUMB   0002H   A   
+DS1307_MINUTES_REG . . . .  N NUMB   0001H   A   
+DS1307_MONTH_REG . . . . .  N NUMB   0005H   A   
+DS1307_RAM . . . . . . . .  N NUMB   0008H   A   
+DS1307_READ_BYTE . . . . .  C ADDR   0209H   A   
+DS1307_SECOND_REG. . . . .  N NUMB   0000H   A   
+DS1307_SET_DATE. . . . . .  C ADDR   02AEH   A   
+DS1307_SET_DAY . . . . . .  C ADDR   02A7H   A   
+DS1307_SET_HOURS . . . . .  C ADDR   02A0H   A   
+DS1307_SET_MINUTES . . . .  C ADDR   0299H   A   
+DS1307_SET_MONTH . . . . .  C ADDR   02B5H   A   
+DS1307_SET_SECOND. . . . .  C ADDR   0292H   A   
+DS1307_SET_SQW . . . . . .  C ADDR   024AH   A   
+DS1307_SET_SQW_FREQ. . . .  C ADDR   022CH   A   
+DS1307_SET_YEAR. . . . . .  C ADDR   02BCH   A   
+DS1307_WRITE_BYTE. . . . .  C ADDR   01F0H   A   
+DS1307_YEAR_REG. . . . . .  N NUMB   0006H   A   
+A51 MACRO ASSEMBLER  MAIN                                                                 05/15/2025 18:20:27 PAGE    15
+
+FINAL_SET_FREQ . . . . . .  C ADDR   0243H   A   
+FINAL_SET_SQW. . . . . . .  C ADDR   025AH   A   
+FORMAT_ALREDY_12H. . . . .  C ADDR   0352H   A   
+FORMAT_ALREDY_24H. . . . .  C ADDR   0398H   A   
+FRIDAY . . . . . . . . . .  C ADDR   0040H   A   
+I2C_READ_ACK . . . . . . .  C ADDR   011CH   A   
+I2C_READ_BYTE. . . . . . .  C ADDR   0127H   A   
+I2C_SEND_ACK . . . . . . .  C ADDR   013BH   A   
+I2C_SEND_BYTE. . . . . . .  C ADDR   0109H   A   
+I2C_SEND_NOACK . . . . . .  C ADDR   0142H   A   
+I2C_START. . . . . . . . .  C ADDR   0102H   A   
+I2C_STOP . . . . . . . . .  C ADDR   014EH   A   
+LCD1602_DATA_PORT. . . . .  D ADDR   0090H   A   
+LCD1602_EN_PIN . . . . . .  B ADDR   0080H.2 A   
+LCD1602_RS_PIN . . . . . .  B ADDR   0080H.0 A   
+LCD1602_RW_PIN . . . . . .  B ADDR   0080H.1 A   
+LCD1602_SEND_DATA. . . . .  C ADDR   018BH   A   
+LCD1602_SEND_INS . . . . .  C ADDR   017AH   A   
+LCD_CLEAR. . . . . . . . .  C ADDR   01CBH   A   
+LCD_CLEAR_SCREEN . . . . .  N NUMB   0001H   A   
+LCD_DISPLAY_SWITCH . . . .  N NUMB   0008H   A   
+LCD_FUNCTION_SET . . . . .  N NUMB   0020H   A   
+LCD_INIT . . . . . . . . .  C ADDR   019CH   A   
+LCD_INPUT_SET. . . . . . .  N NUMB   0004H   A   
+LCD_RESET_CURSOR . . . . .  N NUMB   0002H   A   
+LCD_SEND_CHAR. . . . . . .  C ADDR   01DFH   A   
+LCD_SEND_STRING. . . . . .  C ADDR   01E2H   A   
+LCD_SETCURSOR. . . . . . .  C ADDR   01D0H   A   
+LCD_SET_CGRAM_ADDR . . . .  N NUMB   0040H   A   
+LCD_SET_DDRAM_ADDR . . . .  N NUMB   0080H   A   
+LCD_SHIFT. . . . . . . . .  N NUMB   0010H   A   
+MAINLOOP . . . . . . . . .  C ADDR   0100H   A   
+MONDAY . . . . . . . . . .  C ADDR   0030H   A   
+NEXT_CHAR. . . . . . . . .  C ADDR   01E3H   A   
+OFF. . . . . . . . . . . .  C ADDR   0254H   A   
+ON . . . . . . . . . . . .  C ADDR   024CH   A   
+P0 . . . . . . . . . . . .  D ADDR   0080H   A   
+P1 . . . . . . . . . . . .  D ADDR   0090H   A   
+P3 . . . . . . . . . . . .  D ADDR   00B0H   A   
+READ_LOOP. . . . . . . . .  C ADDR   0129H   A   
+ROW1 . . . . . . . . . . .  C ADDR   01D9H   A   
+SATURDAY . . . . . . . . .  C ADDR   0044H   A   
+SCL. . . . . . . . . . . .  B ADDR   00B0H.7 A   
+SDA. . . . . . . . . . . .  B ADDR   00B0H.6 A   
+SEND_LOOP. . . . . . . . .  C ADDR   010BH   A   
+SETCURSOR. . . . . . . . .  C ADDR   01DCH   A   
+SQW_1HZ. . . . . . . . . .  C ADDR   022CH   A   
+SQW_32KHZ. . . . . . . . .  C ADDR   0241H   A   
+SQW_4KHZ . . . . . . . . .  C ADDR   0233H   A   
+SQW_8KHZ . . . . . . . . .  C ADDR   023AH   A   
+START. . . . . . . . . . .  C ADDR   0100H   A   
+SUNDAY . . . . . . . . . .  C ADDR   0048H   A   
+THURSDAY . . . . . . . . .  C ADDR   003CH   A   
+TUESDAY. . . . . . . . . .  C ADDR   0034H   A   
+WEDNESDAY. . . . . . . . .  C ADDR   0038H   A   
+WRITE_BACK . . . . . . . .  C ADDR   039EH   A   
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)
