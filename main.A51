@@ -412,45 +412,45 @@ DS1307_SET_SQW:
 DS1307_GET_SECOND:
 	MOV A, #DS1307_Second_Reg
 	ACALL DS1307_READ_BYTE
-	MOV [30H], A
+	MOV 30H, A
 	RET
 ;-----------------------------------------------
 DS1307_GET_MINUTES:
 	MOV A, #DS1307_Minutes_Reg
 	ACALL DS1307_READ_BYTE
-	MOV [31H], A
+	MOV 31H, A
 	RET
 ;-----------------------------------------------
 DS1307_GET_HOURS:	
 	MOV A, #DS1307_Hours_Reg
 	ACALL DS1307_READ_BYTE
-	MOV [32H], A
+	MOV 32H, A
 	RET
 ;-----------------------------------------------
 DS1307_GET_DAY:	
 	MOV A, #DS1307_Day_Reg
 	ACALL DS1307_READ_BYTE
-	MOV [33H], A
+	MOV 33H, A
 	RET
 ;-----------------------------------------------
 DS1307_GET_DATE:	
 	MOV A, #DS1307_Date_Reg
 	ACALL DS1307_READ_BYTE
-	MOV [34h], A
+	MOV 34h, A
 	RET
 	
 ;-----------------------------------------------
 DS1307_GET_MONTH:	
 	MOV A, #DS1307_Month_Reg
 	ACALL DS1307_READ_BYTE
-	MOV [35H], A
+	MOV 35H, A
 	RET
 	
 ;-----------------------------------------------
 DS1307_GET_YEAR:	
 	MOV A, #DS1307_Year_Reg
 	ACALL DS1307_READ_BYTE
-	MOV [36H], A
+	MOV 36H, A
 	RET	
 
 ;-----------------------------------------------
