@@ -41,21 +41,10 @@ org 0030h
 
 org 0100h
 Start:
-	acall LCD_INIT			; Khởi tạo LCD
+	
 
 MainLoop:
-	;acall DS1307_GET_TIME		; Đọc giờ từ DS1307, lưu vào R2, R3, R4
-	
-	acall DISPLAY_TIME_TO_LCD	; Hiển thị lên LCD
-
-	mov R2, #5			; Delay 5 lần * 200ms = khoảng 1 giây
-Delay1s:
-	mov R1, #200
-	acall delay_ms
-	djnz R2, Delay1s
-
-	sjmp MainLoop			; Lặp lại
-
+	jmp MainLoop
 
 ;-----------------------------------------------
 ; I2C Interface
@@ -766,7 +755,7 @@ DISPLAY_MINUTES_TO_LCD:
 	RET
 
 DISPLAY_SECONDS_TO_LCD:
-	ACALL DS1307_SET_SECONDS
+	ACALL DS1307_SET_SECOND
 	MOV A, 32H ; seconds
 	ACALL CONVERT_BCD_TO_ASCII 
 	MOV A, R5
@@ -842,4 +831,4 @@ DISPLAY_TIME_TO_LCD:
 
 	RET
 
-
+end
