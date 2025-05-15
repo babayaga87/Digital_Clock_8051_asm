@@ -520,16 +520,14 @@ CONVERT_BCD_TO_ASCII:
 ;........................................
 convert_BCD_TO_NUMBER:
     push ACC
-    mov B, A
-    anl A, #0Fh         
+    anl A, #0Fh
+    mov 41H, A
     pop ACC
     swap A              
-    anl A, #0Fh           
-    mov R0, A             
-    mov A, B
+    anl A, #0Fh                        
     mov B, #10
     mul AB                
-    add A, R0             
+    add A, 41H             
     ret
 
 
