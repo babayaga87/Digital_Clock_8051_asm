@@ -30,6 +30,10 @@ LCD_Set_DDRAM_Addr equ 80h
 org 0000h
 	jmp Start
 
+org 0003h
+	acall DISPLAY_TIME_TO_LCD
+	reti
+
 org 0030h
     monday: db "MON", 0 
     tuesday: db "TUE", 0
@@ -41,7 +45,13 @@ org 0030h
 
 org 0100h
 Start:
-	
+	mov A, #0
+	acall DS1307_SET_SQW_FREQ
+	acall LCD_INIT
+	acall DISPLAY_TIME_TO_LCD
+	SETB IT0    ; INT0 kích cạnh xuống
+    SETB EX0    ; Cho phép ngắt INT0
+    SETB EA     ; Cho phép toàn bộ ngắt
 
 MainLoop:
 	jmp MainLoop
@@ -77,6 +87,8 @@ I2C_Read_ACK:
       ret ; 					(2 cycles)
 I2C_Read_Byte:
       mov R7, #9; counter			(1 cycle)
+	  clr C
+	  clr A
       read_loop:
       setb SCL;					(1 cycle)
       mov C, SDA; read SDA's state		(1 cycle)
@@ -88,6 +100,7 @@ I2C_Read_Byte:
       nop;					(1 cycle)
       DJNZ R7, read_loop;			(2 cycles)
       setb SCL;					(1 cycle) 
+	  ;rlc A
       ret;					(2 cycles)
 I2C_Send_Ack:
       clr SDA;					(1 cycle)
@@ -277,6 +290,7 @@ Next_Char:
     inc A                    ; Tăng offset
     sjmp Next_Char           ; Lặp lại
 Done:
+	pop ACC
     ret
 ;-----------------------------------------------
 ;-----------------------------------------------
@@ -327,15 +341,6 @@ DS1307_READ_BYTE:
       	acall I2C_Stop
 	RET
 
-
-;-----------------------------------------------
-; DS1307_SET_SQW_FREQ
-; Cài đặt tần số xung output của DS1307
-; Tham số: 	A = 0x00 -> 1Hz
-;	    	A = 0x01 -> 4kHz
-;	    	A = 0x02 -> 8kHz
-;	    	A = 0x03 -> 32kHz 
-;-----------------------------------------------
 ;-----------------------------------------------
 ; DS1307_SET_SQW_FREQ
 ; Cài đặt tần số xung output của DS1307
@@ -509,18 +514,18 @@ DS1307_SET_YEAR:
 ; Đầu ra: R5 = ASCII hàng chục, R6 = ASCII hàng đơn vị
 ;-----------------------------------------------
 CONVERT_BCD_TO_ASCII:
-    mov R5, A 
-    anl A, #0fh
-    mov R6, #30h
-    orl A, R6
-    mov R6, A 
-    mov A, R5 
-    swap A          ; swap nibbles
-    anl A, #0fh 
-    mov R5, #30h
-    orl A, R5 
-    mov R5, A 
-    ret 
+	mov R3, #30h
+	mov R4, #30h
+	push ACC 
+	anl A, #0fh
+	orl A, R4
+	mov R4, A
+	pop ACC
+	swap A
+	anl A, #0fh
+	orl A, R3
+	mov R3, A
+	ret
 
 ;........................................
 ;input :
@@ -723,12 +728,10 @@ WRITE_BACK:
     mov R0, #DS1307_Hours_Reg
     mov A, 40H
     acall DS1307_WRITE_BYTE
-    
+   
     pop ACC
-    
-    ret         
-
-
+    ret    
+	
 ;-----------------------------------------------
 ; DISPLAY_TIME_TO_LCD
 ; Hiển thị thời gian hiện tại lên LCD1602 ở hàng 1, cột 0
@@ -738,11 +741,11 @@ WRITE_BACK:
 ;-----------------------------------------------
 DISPLAY_HOURS_TO_LCD:
 	ACALL DS1307_GET_HOURS	 
-	MOV A, 30H  ; hours
+	MOV A, 32H  ; hours
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data	
-	MOV A, R6
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	MOV A, #03Ah ; hienthi dau :
 	ACALL LCD1602_Send_Data
@@ -752,71 +755,66 @@ DISPLAY_MINUTES_TO_LCD:
 	ACALL DS1307_GET_MINUTES
 	MOV A, 31H  ; minutes
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	MOV A, #03Ah
 	ACALL LCD1602_Send_Data
 	RET
 
 DISPLAY_SECONDS_TO_LCD:
-	ACALL DS1307_SET_SECOND
-	MOV A, 32H ; seconds
+	ACALL DS1307_GET_SECOND
+	MOV A, 30H ; seconds
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
-	ACALL LCD1602_Send_Data
-	MOV A, #03Ah
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	RET
 
 DISPLAY_DAY_TO_LCD:
 	ACALL DS1307_GET_DAY     ; -> 33H
-    	MOV A, 33H       ; A = thứ (1..7)
-    	DEC A            ; Đổi về 0..6
-    	MOV B, #4        ; Mỗi chuỗi dài 4 byte (3 + null)
-    	MUL AB           ; DPTR = DayStrings + A*4
-    	MOV DPTR, #0030h
-    	ADD A, DPL
-    	MOV DPL, A
-    	CLR A
-    	ADDC A, DPH
-    	MOV DPH, A
+    MOV A, 33H       ; A = thứ (1..7)
+    DEC A            ; Đổi về 0..6
+	mov B, #4
+	mul AB
+	add A, #30h
+	mov DPL, A
+	mov DPH, #0
+	acall LCD_SEND_STRING
+	ret
 
 DISPLAY_DATE_TO_LCD:
 	ACALL DS1307_GET_DATE    ; -> 34H
-    	ACALL DS1307_GET_MONTH   ; -> 35H
-    	ACALL DS1307_GET_YEAR    ; -> 36H
+    ACALL DS1307_GET_MONTH   ; -> 35H
+    ACALL DS1307_GET_YEAR    ; -> 36H
 	
-	MOV A, 33H ; date
+	MOV A, 34H ; date
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	MOV A, #02Fh
 	ACALL LCD1602_Send_Data
 	
 	
-	MOV A, 34H ; month
+	MOV A, 35H ; month
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	MOV A, #02Fh
 	ACALL LCD1602_Send_Data
 	
 	
-	MOV A, 35H ; year
+	MOV A, 36H ; year
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
-	ACALL LCD1602_Send_Data
-	MOV A, #02Fh
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	
 	RET
@@ -825,11 +823,14 @@ DISPLAY_TIME_TO_LCD:
 	MOV R0, #0
 	MOV R1, #0
 	ACALL LCD_SETCURSOR
-	ACALL DISPLAY_DAY_TO_LCD
 	ACALL DISPLAY_DATE_TO_LCD
+	MOV R0, #0
+	MOV R1, #13
+	ACALL LCD_SETCURSOR
+	ACALL DISPLAY_DAY_TO_LCD
 
 	MOV R0, #1
-	MOV R0, #0
+	MOV R1, #0
 	ACALL LCD_SETCURSOR
 	ACALL DISPLAY_HOURS_TO_LCD
 	ACALL DISPLAY_MINUTES_TO_LCD
