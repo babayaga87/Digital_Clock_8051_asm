@@ -76,7 +76,7 @@ I2C_Read_ACK:
       nop;					(1 cycle)
       ret ; 					(2 cycles)
 I2C_Read_Byte:
-      mov R7, #8; counter			(1 cycle)
+      mov R7, #9; counter			(1 cycle)
       read_loop:
       setb SCL;					(1 cycle)
       mov C, SDA; read SDA's state		(1 cycle)
