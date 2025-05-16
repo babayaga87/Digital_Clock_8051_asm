@@ -30,6 +30,10 @@ LCD_Set_DDRAM_Addr equ 80h
 org 0000h
 	jmp Start
 
+org 0003h
+	acall DISPLAY_TIME_TO_LCD
+	reti
+
 org 0030h
     monday: db "MON", 0 
     tuesday: db "TUE", 0
@@ -41,7 +45,13 @@ org 0030h
 
 org 0100h
 Start:
-	
+	mov A, #0
+	acall DS1307_SET_SQW_FREQ
+	acall LCD_INIT
+	acall DISPLAY_TIME_TO_LCD
+	SETB IT0    ; INT0 kích cạnh xuống
+    SETB EX0    ; Cho phép ngắt INT0
+    SETB EA     ; Cho phép toàn bộ ngắt
 
 MainLoop:
 	jmp MainLoop
@@ -76,7 +86,9 @@ I2C_Read_ACK:
       nop;					(1 cycle)
       ret ; 					(2 cycles)
 I2C_Read_Byte:
-      mov R7, #8; counter			(1 cycle)
+      mov R7, #9; counter			(1 cycle)
+	  clr C
+	  clr A
       read_loop:
       setb SCL;					(1 cycle)
       mov C, SDA; read SDA's state		(1 cycle)
@@ -88,6 +100,7 @@ I2C_Read_Byte:
       nop;					(1 cycle)
       DJNZ R7, read_loop;			(2 cycles)
       setb SCL;					(1 cycle) 
+	  ;rlc A
       ret;					(2 cycles)
 I2C_Send_Ack:
       clr SDA;					(1 cycle)
@@ -277,6 +290,7 @@ Next_Char:
     inc A                    ; Tăng offset
     sjmp Next_Char           ; Lặp lại
 Done:
+	pop ACC
     ret
 ;-----------------------------------------------
 ;-----------------------------------------------
@@ -327,15 +341,6 @@ DS1307_READ_BYTE:
       	acall I2C_Stop
 	RET
 
-
-;-----------------------------------------------
-; DS1307_SET_SQW_FREQ
-; Cài đặt tần số xung output của DS1307
-; Tham số: 	A = 0x00 -> 1Hz
-;	    	A = 0x01 -> 4kHz
-;	    	A = 0x02 -> 8kHz
-;	    	A = 0x03 -> 32kHz 
-;-----------------------------------------------
 ;-----------------------------------------------
 ; DS1307_SET_SQW_FREQ
 ; Cài đặt tần số xung output của DS1307
@@ -501,226 +506,18 @@ DS1307_SET_YEAR:
 ; Đầu ra: R5 = ASCII hàng chục, R6 = ASCII hàng đơn vị
 ;-----------------------------------------------
 CONVERT_BCD_TO_ASCII:
-    mov R5, A 
-    anl A, #0fh
-    mov R6, #30h
-    orl A, R6
-    mov R6, A 
-    mov A, R5 
-    swap A          ; swap nibbles
-    anl A, #0fh 
-    mov R5, #30h
-    orl A, R5 
-    mov R5, A 
-    ret 
-
-;........................................
-;input :
-;output :
-;........................................
-convert_BCD_TO_NUMBER:
-    push ACC
-    mov B, A
-    anl A, #0Fh         
-    pop ACC
-    swap A              
-    anl A, #0Fh           
-    mov R0, A             
-    mov A, B
-    mov B, #10
-    mul AB                
-    add A, R0             
-    ret
-
-
-;........................................
-; Input: A ch?a decimal (VD: 25)
-; Output: A = BCD (0x25)
-;........................................
-convert_NUMBER_TO_BCD:
-    mov B, #10
-    div AB
-    swap A              
-    anl A, #0F0h
-    orl A, B            
-    ret
-
-;---------------------------------------------------
-; DS1307_CHANGE_CLOCK_FORMAT
-; Thay đổi định dạng hiển thị thời gian (12h/24h) của DS1307
-; Input: C (bit). Nếu C = 0 -> định dạng 24h
-;                   Nếu C = 1 -> định dạng 12h
-; Output phụ: Nếu là 12h, bit 5 cho biết AM/PM:
-;              0 = AM, 1 = PM → lưu vào B.1 để dùng bên ngoài
-; Tóm lại: Hàm đã đọc được dữ liệu giờ (tùy chế độ) lưu vào thanh ghi,
-; còn AM/PM thì dữ liệu đã được ghi vào thanh ghi B.1
-; khi viết display thì cần viết thêm hàm display AM PM kiểm tra B.1
-; Lưu ý: hàm này chỉ là hàm ĐỌC và CẬP NHẬT DỮ LIỆU chứ chưa phải là hàm hiển thị cuối cùng 
-;---------------------------------------------------
-DS1307_CHANGE_CLOCK_FORMAT:
-    mov B.0, C     
-
-    push ACC
-
-    mov R0, DS1307_Hours_Reg
-    acall DS1307_READ_BYTE      
-    mov 40H, A                  
-
-    mov C, B.0
-    jnc CLOCK_24H_FORMAT        ; C = 0 => nh?y d?n d?nh d?ng 24h
-
-CLOCK_12H_FORMAT:
-    ; kiem tra xem gio mac dinh da la dinh dang 12h hay chua nhe bit 6 = 1
-    mov A, 40H
-    jb ACC.6, FORMAT_ALREDY_12H 
-    
-    ; chuyen tu dinh dang 24h sang 12h
-    anl A, #00011111b 	; lay gia tri gio hien tai
-    
-    ; chuyen tu BCD sang thap phan
-    push ACC
-    acall convert_BCD_TO_NUMBER
-    mov R1, A
-    pop ACC
-    
-    ;truong hop dac biet
-    cjne R1, #0, CHECK_FOR_12 ; khac 0, nhay vo dinh dang luon
-    
-    ;oo:xx => 12:xx AM
-    mov A, #12
-    acall convert_NUMBER_TO_BCD
-    orl A, #01000000b       ; dinh dang 12h bit.6 = 1
-    mov 40H, A
-    clr B.1		    ; B.1 = 0 => AM
-    jmp WRITE_BACK
-    
-    
-CHECK_FOR_12:
-    cjne R1, #12, CHECK_FOR_PM_OR_AM ; neu gio khac 12 nhay
-    
-    ;12:xx -> 12:xx PM
-    mov A, #12
-    acall convert_NUMBER_TO_BCD
-    orl A, #01000000b    ; set bit 6 len 1 nha ae (12h)
-    orl A, #00100000b	; set bit 5 len 1 (PM)
-    mov 40H, A
-    setb B.1	
-    sjmp WRITE_BACK
-    
-    
-CHECK_FOR_PM_OR_AM:
-    clr C	 ; xoa co carry truoc khi tru
-    mov A, R1
-    subb A, #12       ;so sanh voi 12
-    jc AM_SETTING       ; neu < 12 nhay vo thang loz nay
-    
-    
-    ; > 12 (13:xx => 1:xx PM)
-    add A, #0     ; clear carry flag gia tri khong doi chi setup C = 0
-    ;clr C
-    add A, #12      ; khong phuc lai gia tri ban dau
-    subb A, #12     ; tru cho 12 de lay gio muon lay vi du: 13h -> 1h
-    acall convert_NUMBER_TO_BCD
-    orl A, #01000000b
-    orl A, #00100000b
-    mov 40H, A
-    setb B.1
-    sjmp WRITE_BACK
-    
-AM_SETTING: ;TH < 12
-    mov A, R1
-    acall convert_NUMBER_TO_BCD
-    orl A, #01000000b
-    anl A, #11011111b
-    mov 40H, A
-    clr B.1
-    sjmp WRITE_BACK
-    
-    
-FORMAT_ALREDY_12H:
-    ; da la dinh dang 12h, kiem tra AM / PM
-    anl A, #00100000b
-    jz AM_CASE        
-    
-    setb B.1
-    sjmp WRITE_BACK
-    
-
-AM_CASE:
-    clr B.1                     ; Ghi nh?: B.1 = 0 ? AM
-    sjmp WRITE_BACK
-
-CLOCK_24H_FORMAT:
-    mov A, 40H
-    jnb ACC.6, FORMAT_ALREDY_24H
-    
-    
-    ;chuyen 12h sang 24h
-    ;lay gia tri gio
-    anl A, #00011111b
-    
-    
-    push ACC
-    acall convert_BCD_TO_NUMBER
-    mov R1, A
-    pop ACC
-    
-    
-    ;kiem tra bit PM bit = 0
-    mov A, 40H
-    jnb ACC.5, CHECK_FOR_12AM
-    
-    
-    ; neu la PM cong them 12 tru truong hop 12h
-    mov A, R1
-    cjne A, #12, ADD_12_FOR_PM
-    
-    ;truong hop 12 PM => 12:00
-    mov A, #12
-    sjmp CONVERT_TO_24H
-    
-    
-ADD_12_FOR_PM:
-    mov A, R1
-    add A, #12
-    sjmp CONVERT_TO_24H
-    
-CHECK_FOR_12AM:
-    mov A, R1
-    cjne A, #12, CONVERT_TO_24H   ;kiem tra xem co phai 12AM khong
-    
-    ; 12AM -> 00
-    mov A, #0
-    anl A, #1011111b
-    
-CONVERT_TO_24H:
-    acall convert_NUMBER_TO_BCD;
-    anl A, #10111111b
-    mov 40H, A
-    clr B.1
-    sjmp WRITE_BACK
-    
-    pop ACC
-    anl A, #10111111b
-    mov 40H, A
-    clr B.1                     
-    
-    
-FORMAT_ALREDY_24H:
-    anl A, #10111111b
-    mov 40H, A
-    clr B.1
-
-    
-    
-WRITE_BACK:
-    mov R0, #DS1307_Hours_Reg
-    mov A, 40H
-    acall DS1307_WRITE_BYTE
-    
-    pop ACC
-    
-    ret         
+	mov R3, #30h
+	mov R4, #30h
+	push ACC 
+	anl A, #0fh
+	orl A, R4
+	mov R4, A
+	pop ACC
+	swap A
+	anl A, #0fh
+	orl A, R3
+	mov R3, A
+	ret
 
 
 ;-----------------------------------------------
@@ -732,11 +529,11 @@ WRITE_BACK:
 ;-----------------------------------------------
 DISPLAY_HOURS_TO_LCD:
 	ACALL DS1307_GET_HOURS	 
-	MOV A, 30H  ; hours
+	MOV A, 32H  ; hours
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data	
-	MOV A, R6
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	MOV A, #03Ah ; hienthi dau :
 	ACALL LCD1602_Send_Data
@@ -746,71 +543,66 @@ DISPLAY_MINUTES_TO_LCD:
 	ACALL DS1307_GET_MINUTES
 	MOV A, 31H  ; minutes
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	MOV A, #03Ah
 	ACALL LCD1602_Send_Data
 	RET
 
 DISPLAY_SECONDS_TO_LCD:
-	ACALL DS1307_SET_SECOND
-	MOV A, 32H ; seconds
+	ACALL DS1307_GET_SECOND
+	MOV A, 30H ; seconds
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
-	ACALL LCD1602_Send_Data
-	MOV A, #03Ah
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	RET
 
 DISPLAY_DAY_TO_LCD:
 	ACALL DS1307_GET_DAY     ; -> 33H
-    	MOV A, 33H       ; A = thứ (1..7)
-    	DEC A            ; Đổi về 0..6
-    	MOV B, #4        ; Mỗi chuỗi dài 4 byte (3 + null)
-    	MUL AB           ; DPTR = DayStrings + A*4
-    	MOV DPTR, #0030h
-    	ADD A, DPL
-    	MOV DPL, A
-    	CLR A
-    	ADDC A, DPH
-    	MOV DPH, A
+    MOV A, 33H       ; A = thứ (1..7)
+    DEC A            ; Đổi về 0..6
+	mov B, #4
+	mul AB
+	add A, #30h
+	mov DPL, A
+	mov DPH, #0
+	acall LCD_SEND_STRING
+	ret
 
 DISPLAY_DATE_TO_LCD:
 	ACALL DS1307_GET_DATE    ; -> 34H
-    	ACALL DS1307_GET_MONTH   ; -> 35H
-    	ACALL DS1307_GET_YEAR    ; -> 36H
+    ACALL DS1307_GET_MONTH   ; -> 35H
+    ACALL DS1307_GET_YEAR    ; -> 36H
 	
-	MOV A, 33H ; date
+	MOV A, 34H ; date
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	MOV A, #02Fh
 	ACALL LCD1602_Send_Data
 	
 	
-	MOV A, 34H ; month
+	MOV A, 35H ; month
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	MOV A, #02Fh
 	ACALL LCD1602_Send_Data
 	
 	
-	MOV A, 35H ; year
+	MOV A, 36H ; year
 	ACALL CONVERT_BCD_TO_ASCII 
-	MOV A, R5
+	MOV A, R3
 	ACALL LCD1602_Send_Data
-	MOV A, R6
-	ACALL LCD1602_Send_Data
-	MOV A, #02Fh
+	MOV A, R4
 	ACALL LCD1602_Send_Data
 	
 	RET
@@ -819,11 +611,14 @@ DISPLAY_TIME_TO_LCD:
 	MOV R0, #0
 	MOV R1, #0
 	ACALL LCD_SETCURSOR
-	ACALL DISPLAY_DAY_TO_LCD
 	ACALL DISPLAY_DATE_TO_LCD
+	MOV R0, #0
+	MOV R1, #13
+	ACALL LCD_SETCURSOR
+	ACALL DISPLAY_DAY_TO_LCD
 
 	MOV R0, #1
-	MOV R0, #0
+	MOV R1, #0
 	ACALL LCD_SETCURSOR
 	ACALL DISPLAY_HOURS_TO_LCD
 	ACALL DISPLAY_MINUTES_TO_LCD
