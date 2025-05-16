@@ -1,0 +1,15 @@
+echo "# Ignore Keil uVision IDE files
+*.uvopt
+*.uvgui.*
+*.bak
+*~
+
+# Ignore build output
+*.obj
+*.lst
+*.m51
+*.htm
+
+# Ignore build folders
+Objects/
+Listings/" > .gitignore
