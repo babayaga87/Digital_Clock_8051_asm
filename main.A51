@@ -34,7 +34,6 @@ org 0000h
 
 org 0003h
 	acall BUTTON_HANDLER
-	acall DISPLAY_TIME_TO_LCD
 	reti
 
 org 0013h
@@ -76,6 +75,8 @@ Start:
     SETB EA     ; Cho phép toàn bộ ngắt
 	setb IT1	; INT1 kich canh xuong
 	setb ex1	; bat ngat INT1
+	
+	mov 38h, #0ffh
 	
 	
 MainLoop:
@@ -250,7 +251,7 @@ LCD_INIT:
 	acall LCD1602_Send_Ins
 	mov A, #06h ; input set -> I/D = 1 (Increment mode), S = 0 (no shift)
 	acall LCD1602_Send_Ins
-	mov A, #0Fh ; turn the dislay on, D = 1
+	mov A, #0Ch ; turn the dislay on, D = 1
 	acall LCD1602_Send_Ins    
     ret 
 
@@ -931,12 +932,10 @@ CHECK_ENCODER:
 	sjmp left
 	
 	left:
-	mov A, #14h
-	acall DS1307_SET_HOURS
+	acall ENCODER_LEFT
 	sjmp done_encoder
 	right:
-	mov A, #15h
-	acall DS1307_SET_HOURS
+	acall ENCODER_RIGHT
 	sjmp done_encoder
 	
 	done_encoder:
@@ -945,19 +944,357 @@ CHECK_ENCODER:
 	acall DISPLAY_TIME_TO_LCD
 	setb EA
 	ret
+
+ENCODER_RIGHT:
+	mov A, 38h
+	cjne A, #0ffh, case_inc_min
+	ret
+	case_inc_min:
+	cjne A, #31h, case_inc_hour
+	mov A, #1
+	acall ADJUST_MINUTE
+	ret
 	
+	case_inc_hour:
+	cjne A, #32h, case_inc_day
+	mov A, #1
+	acall ADJUST_HOUR
+	ret
+
+	case_inc_day:
+	cjne A, #33h, case_inc_date
+	mov A, #1 
+	acall ADJUST_DAY
+	ret
+	
+	case_inc_date:
+	cjne A, #34h, case_inc_month
+	mov A, #1
+	acall ADJUST_DATE
+	ret
+	
+	case_inc_month:
+	cjne A, #35h, case_inc_year
+	mov A, #1
+	acall ADJUST_MONTH
+	ret
+	
+	case_inc_year:
+	mov A, #1
+	acall ADJUST_YEAR
+	ret
+	
+ENCODER_LEFT:
+	mov A, 38h
+	cjne A, #0ffh, case_dec_min
+	ret
+	
+	case_dec_min:
+	cjne A, #31h, case_dec_hour
+	mov A, #0
+	acall ADJUST_MINUTE
+	ret
+	
+	case_dec_hour:
+	cjne A, #32h, case_dec_day
+	mov A, #0
+	acall ADJUST_HOUR
+	ret
+
+	case_dec_day:
+	cjne A, #33h, case_dec_date
+	mov A, #0 
+	acall ADJUST_DAY
+	ret
+	
+	case_dec_date:
+	cjne A, #34h, case_dec_month
+	mov A, #0
+	acall ADJUST_DATE
+	ret
+	
+	case_dec_month:
+	cjne A, #35h, case_dec_year
+	mov A, #0
+	acall ADJUST_MONTH
+	ret
+	
+	case_dec_year:
+	mov A, #0
+	acall ADJUST_YEAR
+	ret
+	ret
+
+;-----------------------------------------------
+; ADJUST_MINUTE: Tăng giảm phút
+; A = 0 -> Giảm
+; A = 1 -> Tăng
+;-----------------------------------------------
+ADJUST_MINUTE:
+    CJNE    A, #1, DECREASE     ; nếu A != 1 thì nhảy đến giảm
+
+;----- TĂNG PHÚT -----
+INCREASE:
+    MOV     A, 31h           ; A = phút hiện tại
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #59, INC_MIN_NEXT    ; nếu A != 59 thì tăng
+    CLR     A                   ; nếu A == 59 thì đặt lại 0
+    SJMP    STORE_MINUTE
+INC_MIN_NEXT:
+    INC     A                   ; tăng A
+    SJMP    STORE_MINUTE
+
+;----- GIẢM PHÚT -----
+DECREASE:
+    MOV     A, 31h           ; A = phút hiện tại
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #0, DEC_MIN_NEXT     ; nếu A != 0 thì giảm
+    MOV     A, #59              ; nếu A == 0 thì đặt lại 59
+    SJMP    STORE_MINUTE
+DEC_MIN_NEXT:
+    DEC     A                   ; giảm A
+
+;----- LƯU KẾT QUẢ -----
+STORE_MINUTE:
+	acall convert_NUMBER_TO_BCD
+    MOV     31h, A           ; lưu lại phút đã cập nhật
+	acall DS1307_SET_MINUTES
+    RET
+
+;-----------------------------------------------
+; ADJUST_HOUR: Tăng giảm giờ
+; A = 0 -> Giảm
+; A = 1 -> Tăng
+;-----------------------------------------------
+ADJUST_HOUR:
+    CJNE    A, #1, DECREASE_HOUR    ; nếu A != 1 thì nhảy đến giảm
+
+;----- TĂNG GIỜ -----
+INCREASE_HOUR:
+    MOV     A, 32h                 ; A = giờ hiện tại
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #23, INC_HOUR_NEXT   ; nếu A != 23 thì tăng
+    CLR     A                       ; nếu A == 23 thì đặt lại 0
+    SJMP    STORE_HOUR
+INC_HOUR_NEXT:
+    INC     A                       ; tăng A
+    SJMP    STORE_HOUR
+
+;----- GIẢM GIỜ -----
+DECREASE_HOUR:
+    MOV     A, 32h                 ; A = giờ hiện tại
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #0, DEC_HOUR_NEXT    ; nếu A != 0 thì giảm
+    MOV     A, #23                  ; nếu A == 0 thì đặt lại 23
+    SJMP    STORE_HOUR
+DEC_HOUR_NEXT:
+    DEC     A                       ; giảm A
+
+;----- LƯU KẾT QUẢ -----
+STORE_HOUR:
+	acall convert_NUMBER_TO_BCD
+    MOV     32h, A                 ; lưu lại giờ đã cập nhật
+	acall DS1307_SET_HOURS
+    RET
+
+;-----------------------------------------------
+; ADJUST_DAY: Tăng giảm thứ
+; A = 0 -> Giảm
+; A = 1 -> Tăng
+;-----------------------------------------------
+ADJUST_DAY:
+    CJNE    A, #1, DECREASE_DAY     ; nếu A != 1 thì nhảy đến giảm
+
+;----- TĂNG THỨ -----
+INCREASE_DAY:
+    MOV     A, 33h                  ; A = giá trị thứ hiện tại
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #7, INC_DAY_NEXT     ; nếu A != 7 thì tăng
+    MOV     A, #1                   ; nếu A == 7 thì quay về Chủ nhật (1)
+    SJMP    STORE_DAY
+INC_DAY_NEXT:
+    INC     A
+    SJMP    STORE_DAY
+
+;----- GIẢM THỨ -----
+DECREASE_DAY:
+    MOV     A, 33h
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #1, DEC_DAY_NEXT     ; nếu A != 1 thì giảm
+    MOV     A, #7                   ; nếu A == 1 thì quay về Thứ bảy (7)
+    SJMP    STORE_DAY
+DEC_DAY_NEXT:
+    DEC     A
+
+;----- LƯU KẾT QUẢ -----
+STORE_DAY:
+	acall convert_NUMBER_TO_BCD
+    MOV     33h, A
+	acall DS1307_SET_DAY
+    RET
+
+;-----------------------------------------------
+; ADJUST_DATE: Tăng giảm ngày
+; A = 0 -> Giảm
+; A = 1 -> Tăng
+;-----------------------------------------------
+ADJUST_DATE:
+    CJNE    A, #1, DECREASE_DATE     ; nếu A != 1 thì giảm
+
+;----- TĂNG NGÀY -----
+INCREASE_DATE:
+    MOV     A, 34h
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #31, INC_DATE_NEXT   ; nếu chưa phải 31 thì tăng
+    MOV     A, #1                   ; nếu là 31 thì quay về 1
+    SJMP    STORE_DATE
+INC_DATE_NEXT:
+    INC     A
+    SJMP    STORE_DATE
+
+;----- GIẢM NGÀY -----
+DECREASE_DATE:
+    MOV     A, 34h
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #1, DEC_DATE_NEXT    ; nếu chưa phải 1 thì giảm
+    MOV     A, #31                  ; nếu là 1 thì quay về 31
+    SJMP    STORE_DATE
+DEC_DATE_NEXT:
+    DEC     A
+
+;----- LƯU KẾT QUẢ -----
+STORE_DATE:
+	acall convert_NUMBER_TO_BCD
+    MOV     34h, A
+	acall DS1307_SET_DATE
+    RET
+
+;-----------------------------------------------
+; ADJUST_MONTH: Tăng giảm tháng
+; A = 0 -> Giảm
+; A = 1 -> Tăng
+;-----------------------------------------------
+ADJUST_MONTH:
+    CJNE    A, #1, DECREASE_MONTH     ; nếu A != 1 thì giảm
+
+;----- TĂNG THÁNG -----
+INCREASE_MONTH:
+    MOV     A, 35h
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #12, INC_MONTH_NEXT   ; nếu chưa phải tháng 12 thì tăng
+    MOV     A, #1                    ; nếu là 12 thì quay về 1
+    SJMP    STORE_MONTH
+INC_MONTH_NEXT:
+    INC     A
+    SJMP    STORE_MONTH
+
+;----- GIẢM THÁNG -----
+DECREASE_MONTH:
+    MOV     A, 35h
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #1, DEC_MONTH_NEXT    ; nếu chưa phải tháng 1 thì giảm
+    MOV     A, #12                   ; nếu là 1 thì quay về 12
+    SJMP    STORE_MONTH
+DEC_MONTH_NEXT:
+    DEC     A
+
+;----- LƯU GIÁ TRỊ -----
+STORE_MONTH:
+	acall convert_NUMBER_TO_BCD
+    MOV     35h, A
+	acall DS1307_SET_MONTH
+    RET
+
+;-----------------------------------------------
+; ADJUST_YEAR: Tăng giảm năm
+; A = 0 -> Giảm
+; A = 1 -> Tăng
+;-----------------------------------------------
+ADJUST_YEAR:
+    CJNE    A, #1, DECREASE_YEAR     ; nếu A != 1 thì giảm
+
+;----- TĂNG NĂM -----
+INCREASE_YEAR:
+    MOV     A, 36h
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #99, INC_YEAR_NEXT    ; nếu chưa tới 99 thì tăng
+    MOV     A, #0                    ; nếu là 99 thì quay về 0
+    SJMP    STORE_YEAR
+INC_YEAR_NEXT:
+    INC     A
+    SJMP    STORE_YEAR
+
+;----- GIẢM NĂM -----
+DECREASE_YEAR:
+    MOV     A, 36h
+	acall convert_BCD_TO_NUMBER
+    CJNE    A, #0, DEC_YEAR_NEXT     ; nếu chưa là 0 thì giảm
+    MOV     A, #99                   ; nếu là 0 thì quay về 99
+    SJMP    STORE_YEAR
+DEC_YEAR_NEXT:
+    DEC     A
+
+;----- LƯU GIÁ TRỊ -----
+STORE_YEAR:
+	acall convert_NUMBER_TO_BCD
+    MOV     36h, A
+	acall DS1307_SET_YEAR
+    RET
+
 BUTTON_HANDLER:
-	mov A, 30h
-	rlc A
-	jnc stop_rtc
+	mov A, 38h
+	cjne A, #31h, case_hour
+	mov 38h, #32h
+	mov R0, #1
+	mov R1, #0
+	acall LCD_SETCURSOR
+	ret
+	
+	case_hour:
+	cjne A, #32h, case_day
+	mov 38h, #33h
+	mov R0, #0
+	mov R1, #13
+	acall LCD_SETCURSOR
+	ret
+	
+	case_day:
+	cjne A, #33h, case_date
+	mov 38h, #34h
+	mov R0, #0
+	mov R1, #0
+	acall LCD_SETCURSOR
+	ret
+	
+	case_date:
+	cjne A, #34h, case_month
+	mov 38h, #35h
+	mov R0, #0
+	mov R1, #3
+	acall LCD_SETCURSOR
+	ret
+	
+	case_month:
+	cjne A, #35h, case_year
+	mov 38h, #36h
+	mov R0, #0
+	mov R1, #6
+	acall LCD_SETCURSOR
+	ret
+	
+	case_year:
+	cjne A, #36h, case_default
+	mov 38h, #0ffh
 	acall RESET_CURSOR_BLINK
 	acall START_RTC
 	ret
-	stop:
+	
+	case_default:
+	mov 38h, #31h 
 	acall STOP_RTC
 	acall SET_CURSOR_BLINK
-	mov R0, #0
-	mov R1, #0
+	mov R0, #1
+	mov R1, #3
 	acall LCD_SETCURSOR
 	ret 
 	
@@ -977,11 +1314,11 @@ START_RTC:
 SET_CURSOR_BLINK:
 	mov A, #0fh
 	acall LCD1602_Send_Ins
-	ret
+	ret 
 	
 RESET_CURSOR_BLINK:
-	;mov A, #0ch
-	;acall LCD1602_Send_Ins
+	mov A, #0ch
+	acall LCD1602_Send_Ins
 	ret
 	
 
