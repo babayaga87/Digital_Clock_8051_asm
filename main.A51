@@ -24,13 +24,20 @@ LCD_Shift equ 10h
 LCD_Function_Set equ 20h
 LCD_Set_CGRAM_Addr equ 40h
 LCD_Set_DDRAM_Addr equ 80h
-
+Rotary_Encoder_DT equ P2.0
+Rotary_Encoder_CLK equ P2.1
+Rotary_Encoder_SW equ P3.2
 
 
 org 0000h
 	jmp Start
 
 org 0003h
+	acall BUTTON_HANDLER
+	acall DISPLAY_TIME_TO_LCD
+	reti
+
+org 0013h
 	acall DISPLAY_TIME_TO_LCD
 	reti
 
@@ -45,15 +52,35 @@ org 0030h
 
 org 0100h
 Start:
-	mov A, #0
-	acall DS1307_SET_SQW_FREQ
+	; khoi tao lcd
 	acall LCD_INIT
 	acall DISPLAY_TIME_TO_LCD
+	
+	; khoi tao cac thong so ban dau cho DS1307
+	acall DS1307_GET_SECOND
+	mov A, 30h
+	anl A, #7fh
+	acall DS1307_SET_SECOND
+	mov A, #0
+	acall DS1307_SET_SQW_FREQ
+	mov A, #0
+	acall DS1307_SET_HOURS
+	
+	;setup input
+	mov P2, #03h
+	mov P3, #0ffh
+	
+	; setup cac ngat ngoai
 	SETB IT0    ; INT0 kích cạnh xuống
     SETB EX0    ; Cho phép ngắt INT0
     SETB EA     ; Cho phép toàn bộ ngắt
-
+	setb IT1	; INT1 kich canh xuong
+	setb ex1	; bat ngat INT1
+	
+	
 MainLoop:
+	acall CHECK_ENCODER
+	acall delay_1ms
 	jmp MainLoop
 
 ;-----------------------------------------------
@@ -223,7 +250,7 @@ LCD_INIT:
 	acall LCD1602_Send_Ins
 	mov A, #06h ; input set -> I/D = 1 (Increment mode), S = 0 (no shift)
 	acall LCD1602_Send_Ins
-	mov A, #0Ch ; turn the dislay on, D = 1
+	mov A, #0Fh ; turn the dislay on, D = 1
 	acall LCD1602_Send_Ins    
     ret 
 
@@ -528,8 +555,8 @@ CONVERT_BCD_TO_ASCII:
 	ret
 
 ;........................................
-;input :
-;output :
+;input : A (BCD)
+;output : A (unsigned int)
 ;........................................
 convert_BCD_TO_NUMBER:
     push ACC
@@ -540,7 +567,7 @@ convert_BCD_TO_NUMBER:
     anl A, #0Fh                        
     mov B, #10
     mul AB                
-    add A, 41H             
+    add A, 41H  
     ret
 
 
@@ -766,6 +793,7 @@ DISPLAY_MINUTES_TO_LCD:
 DISPLAY_SECONDS_TO_LCD:
 	ACALL DS1307_GET_SECOND
 	MOV A, 30H ; seconds
+	anl A, #7fh
 	ACALL CONVERT_BCD_TO_ASCII 
 	MOV A, R3
 	ACALL LCD1602_Send_Data
@@ -835,7 +863,126 @@ DISPLAY_TIME_TO_LCD:
 	ACALL DISPLAY_HOURS_TO_LCD
 	ACALL DISPLAY_MINUTES_TO_LCD
 	ACALL DISPLAY_SECONDS_TO_LCD
-
 	RET
+
+DEC_HOUR:
+	mov A, 36h
+	acall convert_BCD_TO_NUMBER
+	cjne A, #0, reset_hour
+	dec A
+	acall convert_NUMBER_TO_BCD
+	acall DS1307_SET_HOURS
+	ret
+	reset_hour:
+	mov A, #23h
+	acall DS1307_SET_HOURS
+	ret
+	
+INC_HOUR:
+	mov A, 36h
+	acall convert_BCD_TO_NUMBER
+	cjne A, #23, set_hour
+	inc A
+	acall convert_NUMBER_TO_BCD
+	acall DS1307_SET_HOURS
+	ret
+	set_hour:
+	mov A, #0h
+	acall DS1307_SET_HOURS
+	ret
+	
+
+CHECK_ENCODER:
+	mov A, P2
+	anl A, #03h ; chi lay 2 bit cuoi
+
+	encoder_low:
+	cjne A, #0, encoder_high 
+	; truong hop encoder dang o trang thai low
+	mov 37h, A ; luu lai trang thai cua encoder
+	ret
+
+	encoder_high:
+	cjne A, #3, encoder_clock
+	; truong hop encoder dang o trang thai high
+	mov 37h, A ; luu lai trang thai cua encoder
+	ret 
+	
+	encoder_clock:
+	; trang hop encoder thay doi trang thai
+	cjne A, 37h, handle_signal
+	ret ; truong hop da xu ly tin hieu
+	
+	handle_signal:
+	clr EA
+	mov B, A
+	rl A ; A << 1
+	rl A ; A << 1
+	orl A, 37h ; A (curr) or (prev)
+	cjne A, #4, _c8
+	sjmp left
+	_c8:
+	cjne A, #8, _c7
+	sjmp right
+	_c7:
+	cjne A, #7, _c11
+	sjmp right
+	_c11:
+	sjmp left
+	
+	left:
+	mov A, #14h
+	acall DS1307_SET_HOURS
+	sjmp done_encoder
+	right:
+	mov A, #15h
+	acall DS1307_SET_HOURS
+	sjmp done_encoder
+	
+	done_encoder:
+	mov A, B
+	mov 37h, A
+	acall DISPLAY_TIME_TO_LCD
+	setb EA
+	ret
+	
+BUTTON_HANDLER:
+	mov A, 30h
+	rlc A
+	jnc stop_rtc
+	acall RESET_CURSOR_BLINK
+	acall START_RTC
+	ret
+	stop:
+	acall STOP_RTC
+	acall SET_CURSOR_BLINK
+	mov R0, #0
+	mov R1, #0
+	acall LCD_SETCURSOR
+	ret 
+	
+
+STOP_RTC:
+	mov A, 30h
+	orl A, #80h
+	acall DS1307_SET_SECOND
+	ret
+
+START_RTC:
+	mov A, 30h
+	anl A, #7fh
+	acall DS1307_SET_SECOND
+	ret
+
+SET_CURSOR_BLINK:
+	mov A, #0fh
+	acall LCD1602_Send_Ins
+	ret
+	
+RESET_CURSOR_BLINK:
+	;mov A, #0ch
+	;acall LCD1602_Send_Ins
+	ret
+	
 
 end
