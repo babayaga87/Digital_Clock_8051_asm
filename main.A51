@@ -33,6 +33,7 @@ org 0000h
 	jmp Start
 
 org 0003h
+	acall delay_1ms
 	acall BUTTON_HANDLER
 	reti
 
@@ -57,13 +58,9 @@ Start:
 	
 	; khoi tao cac thong so ban dau cho DS1307
 	acall DS1307_GET_SECOND
-	mov A, 30h
-	anl A, #7fh
-	acall DS1307_SET_SECOND
+	acall START_RTC
 	mov A, #0
 	acall DS1307_SET_SQW_FREQ
-	mov A, #0
-	acall DS1307_SET_HOURS
 	
 	;setup input
 	mov P2, #03h
@@ -77,7 +74,6 @@ Start:
 	setb ex1	; bat ngat INT1
 	
 	mov 38h, #0ffh
-	
 	
 MainLoop:
 	acall CHECK_ENCODER
@@ -916,7 +912,7 @@ CHECK_ENCODER:
 	
 	handle_signal:
 	clr EA
-	mov B, A
+	push ACC
 	rl A ; A << 1
 	rl A ; A << 1
 	orl A, 37h ; A (curr) or (prev)
@@ -939,7 +935,7 @@ CHECK_ENCODER:
 	sjmp done_encoder
 	
 	done_encoder:
-	mov A, B
+	pop ACC
 	mov 37h, A
 	acall DISPLAY_TIME_TO_LCD
 	setb EA
@@ -1242,12 +1238,14 @@ STORE_YEAR:
     RET
 
 BUTTON_HANDLER:
+	clr EA
 	mov A, 38h
 	cjne A, #31h, case_hour
 	mov 38h, #32h
 	mov R0, #1
 	mov R1, #0
 	acall LCD_SETCURSOR
+	setb EA
 	ret
 	
 	case_hour:
@@ -1256,6 +1254,7 @@ BUTTON_HANDLER:
 	mov R0, #0
 	mov R1, #13
 	acall LCD_SETCURSOR
+	setb EA
 	ret
 	
 	case_day:
@@ -1264,6 +1263,7 @@ BUTTON_HANDLER:
 	mov R0, #0
 	mov R1, #0
 	acall LCD_SETCURSOR
+	setb EA
 	ret
 	
 	case_date:
@@ -1272,6 +1272,7 @@ BUTTON_HANDLER:
 	mov R0, #0
 	mov R1, #3
 	acall LCD_SETCURSOR
+	setb EA
 	ret
 	
 	case_month:
@@ -1280,6 +1281,7 @@ BUTTON_HANDLER:
 	mov R0, #0
 	mov R1, #6
 	acall LCD_SETCURSOR
+	setb EA
 	ret
 	
 	case_year:
@@ -1287,6 +1289,7 @@ BUTTON_HANDLER:
 	mov 38h, #0ffh
 	acall RESET_CURSOR_BLINK
 	acall START_RTC
+	setb EA
 	ret
 	
 	case_default:
@@ -1296,6 +1299,7 @@ BUTTON_HANDLER:
 	mov R0, #1
 	mov R1, #3
 	acall LCD_SETCURSOR
+	setb EA
 	ret 
 	
 
