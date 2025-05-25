@@ -893,12 +893,6 @@ CHECK_ENCODER:
 	mov A, P2
 	anl A, #03h ; chi lay 2 bit cuoi
 
-	encoder_low:
-	cjne A, #0, encoder_high 
-	; truong hop encoder dang o trang thai low
-	mov 37h, A ; luu lai trang thai cua encoder
-	ret
-
 	encoder_high:
 	cjne A, #3, encoder_clock
 	; truong hop encoder dang o trang thai high
@@ -916,15 +910,10 @@ CHECK_ENCODER:
 	rl A ; A << 1
 	rl A ; A << 1
 	orl A, 37h ; A (curr) or (prev)
-	cjne A, #4, _c8
-	sjmp left
-	_c8:
-	cjne A, #8, _c7
+	cjne A, #07h, check_left
 	sjmp right
-	_c7:
-	cjne A, #7, _c11
-	sjmp right
-	_c11:
+	check_left:
+	cjne A, #0bh, no_change
 	sjmp left
 	
 	left:
@@ -933,6 +922,12 @@ CHECK_ENCODER:
 	right:
 	acall ENCODER_RIGHT
 	sjmp done_encoder
+	
+	no_change:
+	pop ACC
+	mov 37h, A
+	setb EA
+	ret
 	
 	done_encoder:
 	pop ACC
