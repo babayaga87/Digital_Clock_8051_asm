@@ -33,8 +33,10 @@ org 0000h
 	jmp Start
 
 org 0003h
+	clr EA
 	acall delay_1ms
 	acall BUTTON_HANDLER
+	setb EA
 	reti
 
 org 0013h
@@ -50,7 +52,7 @@ org 0030h
     saturday: db "SAT", 0 
     sunday: db "SUN", 0
 
-org 0100h
+org 0100h	
 Start:
 	; khoi tao lcd
 	acall LCD_INIT
@@ -1233,14 +1235,12 @@ STORE_YEAR:
     RET
 
 BUTTON_HANDLER:
-	clr EA
 	mov A, 38h
 	cjne A, #31h, case_hour
 	mov 38h, #32h
 	mov R0, #1
 	mov R1, #0
 	acall LCD_SETCURSOR
-	setb EA
 	ret
 	
 	case_hour:
@@ -1249,7 +1249,6 @@ BUTTON_HANDLER:
 	mov R0, #0
 	mov R1, #13
 	acall LCD_SETCURSOR
-	setb EA
 	ret
 	
 	case_day:
@@ -1258,7 +1257,6 @@ BUTTON_HANDLER:
 	mov R0, #0
 	mov R1, #0
 	acall LCD_SETCURSOR
-	setb EA
 	ret
 	
 	case_date:
@@ -1267,7 +1265,6 @@ BUTTON_HANDLER:
 	mov R0, #0
 	mov R1, #3
 	acall LCD_SETCURSOR
-	setb EA
 	ret
 	
 	case_month:
@@ -1276,7 +1273,6 @@ BUTTON_HANDLER:
 	mov R0, #0
 	mov R1, #6
 	acall LCD_SETCURSOR
-	setb EA
 	ret
 	
 	case_year:
@@ -1284,7 +1280,6 @@ BUTTON_HANDLER:
 	mov 38h, #0ffh
 	acall RESET_CURSOR_BLINK
 	acall START_RTC
-	setb EA
 	ret
 	
 	case_default:
@@ -1294,7 +1289,6 @@ BUTTON_HANDLER:
 	mov R0, #1
 	mov R1, #3
 	acall LCD_SETCURSOR
-	setb EA
 	ret 
 	
 
