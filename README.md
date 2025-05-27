@@ -23,8 +23,8 @@ This project demonstrates how to interface the DS1307 Real-Time Clock (RTC) modu
 ### 🕰️ DS1307 Communication Functions
 | Function | Description |
 |----------|-------------|
-| `DS1307_WRITE_BYTE` | Writes one byte to a DS1307 register via I2C. Input: R0 = address, A = data. |
-| `DS1307_READ_BYTE` | Reads one byte from DS1307 register via I2C. Input: R0 = address, Output: A = data. |
+| `DS1307_WRITE_BYTE` | Writes one byte to a DS1307 register via I2C. Input: A = address, B = data. |
+| `DS1307_READ_BYTE` | Reads one byte from DS1307 register via I2C. Input: A = address, Output: A = data. |
 | `DS1307_GET_SECOND`  | Retrieves the current seconds value from the DS1307 RTC.               |
 | `DS1307_GET_MINUTES` | Retrieves the current minutes value from the DS1307 RTC.               |
 | `DS1307_GET_HOURS`   | Retrieves the current hours value from the DS1307 RTC.                 |
@@ -59,7 +59,7 @@ This project demonstrates how to interface the DS1307 Real-Time Clock (RTC) modu
 | Function | Description |
 |----------|-------------|
 | `CONVERT_BCD_TO_ASCII` | Converts a BCD byte (in A) to ASCII digits. Output: R5 = tens, R6 = units. |
-| `DISPLAY_TIME_TO_LCD` | Combines hours (R4), minutes (R3), seconds (R2) into formatted time "HH:MM:SS" and sends to LCD. |
+| `DISPLAY_TIME_TO_LCD` | Display formatted time to LCD |
 
 ##  Task Assignment (5 members)
 | Member | Responsibility |
@@ -67,7 +67,7 @@ This project demonstrates how to interface the DS1307 Real-Time Clock (RTC) modu
 | **Task 1** | Time display function `DISPLAY_TIME_TO_LCD`, overall integration, testing, report |
 | **Task 2** | LCD initialization and clearing: `LCD_INIT`, `LCD_CLEAR` |
 | **Task 3** | Cursor positioning and string output: `LCD_SETCURSOR`, `LCD_SEND_STRING`, `LCD_SEND_CHAR`|
-| **Task 4** | DS1307 register read and time retrieval: `DS1307_READ_BYTE`, `DS1307_GET_TIME` |
+| **Task 4** | DS1307 register read/write and time retrieval: `DS1307_READ_BYTE`, `DS1307_WRTIE_BYTE`, `DS1307_GET`, `DS1307_SET` |
 | **Task 5** | BCD to ASCII conversion: `CONVERT_BCD_TO_ASCII` |
 
 ## 📎 Notes
