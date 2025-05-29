@@ -343,7 +343,7 @@ DS1307_WRITE_BYTE:
 ;-----------------------------------------------
 ; DS1307_READ_BYTE
 ; Đọc 1 byte dữ liệu từ DS1307 tại địa chỉ reg
-; Tham số: R0 chứa địa chỉ thanh ghi (reg)
+; Tham số: A chứa địa chỉ thanh ghi (reg)
 ; Trả về: A chứa dữ liệu đọc được từ DS1307
 ;huy
 ;-----------------------------------------------
