@@ -61,6 +61,9 @@ This project demonstrates how to interface the DS1307 Real-Time Clock (RTC) modu
 | `CONVERT_BCD_TO_ASCII` | Converts a BCD byte (in A) to ASCII digits. Output: R5 = tens, R6 = units. |
 | `DISPLAY_TIME_TO_LCD` | Display formatted time to LCD |
 
+##  Schematic
+![Screenshot](/schematic.jpg)
+
 ##  Task Assignment (5 members)
 | Member | Responsibility |
 |--------|----------------|
